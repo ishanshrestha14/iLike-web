@@ -1,6 +1,7 @@
 import Match from "../models/Match.js";
 import Profile from "../models/Profile.js";
 import User from "../models/user.js";
+import Block from "../models/Block.js";
 
 // @desc    Get potential matches for a user
 // @route   GET /api/matches/potential
@@ -29,6 +30,18 @@ export const getPotentialMatches = async (req, res) => {
         : interaction.likerId
     );
     excludedUserIds.push(currentUserId); // Exclude self
+
+    // Exclude blocked users (in either direction)
+    const blocks = await Block.find({
+      $or: [{ blockerId: currentUserId }, { blockedId: currentUserId }],
+    });
+    blocks.forEach((block) => {
+      excludedUserIds.push(
+        block.blockerId.equals(currentUserId)
+          ? block.blockedId
+          : block.blockerId
+      );
+    });
 
     // Build query based on preferences
     const query = {
@@ -219,27 +232,33 @@ export const getMatches = async (req, res) => {
       {
         path: "likerId",
         select: "name email",
-        populate: {
-          path: "userId",
-          model: "Profile",
-          select: "name age gender location photoUrls bio interests",
-        },
       },
       {
         path: "likedId",
         select: "name email",
-        populate: {
-          path: "userId",
-          model: "Profile",
-          select: "name age gender location photoUrls bio interests",
-        },
       },
     ]);
+
+    // Get all user IDs involved in matches
+    const allUserIds = [];
+    matches.forEach((match) => {
+      allUserIds.push(match.likerId._id, match.likedId._id);
+    });
+
+    // Get profiles for all users
+    const profiles = await Profile.find({ userId: { $in: allUserIds } });
+
+    // Create a map for quick lookup
+    const profileMap = {};
+    profiles.forEach((profile) => {
+      profileMap[profile.userId.toString()] = profile;
+    });
 
     // Transform the data to show the other user in each match
     const transformedMatches = matches.map((match) => {
       const isLiker = match.likerId._id.equals(currentUserId);
       const otherUser = isLiker ? match.likedId : match.likerId;
+      const otherUserProfile = profileMap[otherUser._id.toString()];
 
       return {
         matchId: match._id,
@@ -247,13 +266,13 @@ export const getMatches = async (req, res) => {
         user: {
           id: otherUser._id,
           name: otherUser.name,
-          age: otherUser.userId?.age,
-          gender: otherUser.userId?.gender,
-          location: otherUser.userId?.location,
-          photoUrls: otherUser.userId?.photoUrls || [],
-          profilePicture: otherUser.userId?.profilePicture,
-          bio: otherUser.userId?.bio,
-          interests: otherUser.userId?.interests || [],
+          age: otherUserProfile?.age,
+          gender: otherUserProfile?.gender,
+          location: otherUserProfile?.location,
+          photoUrls: otherUserProfile?.photoUrls || [],
+          profilePicture: otherUserProfile?.profilePicture,
+          bio: otherUserProfile?.bio,
+          interests: otherUserProfile?.interests || [],
         },
       };
     });
@@ -286,29 +305,37 @@ export const getLikes = async (req, res) => {
     }).populate({
       path: "likerId",
       select: "name email",
-      populate: {
-        path: "userId",
-        model: "Profile",
-        select: "name age gender location photoUrls bio interests",
-      },
+    });
+
+    // Get profiles for the users who liked
+    const likerUserIds = likes.map((like) => like.likerId._id);
+    const profiles = await Profile.find({ userId: { $in: likerUserIds } });
+
+    // Create a map for quick lookup
+    const profileMap = {};
+    profiles.forEach((profile) => {
+      profileMap[profile.userId.toString()] = profile;
     });
 
     // Transform the data
-    const transformedLikes = likes.map((like) => ({
-      likeId: like._id,
-      likedAt: like.likedAt,
-      user: {
-        id: like.likerId._id,
-        name: like.likerId.name,
-        age: like.likerId.userId?.age,
-        gender: like.likerId.userId?.gender,
-        location: like.likerId.userId?.location,
-        photoUrls: like.likerId.userId?.photoUrls || [],
-        profilePicture: like.likerId.userId?.profilePicture,
-        bio: like.likerId.userId?.bio,
-        interests: like.likerId.userId?.interests || [],
-      },
-    }));
+    const transformedLikes = likes.map((like) => {
+      const profile = profileMap[like.likerId._id.toString()];
+      return {
+        likeId: like._id,
+        likedAt: like.likedAt,
+        user: {
+          id: like.likerId._id,
+          name: like.likerId.name,
+          age: profile?.age,
+          gender: profile?.gender,
+          location: profile?.location,
+          photoUrls: profile?.photoUrls || [],
+          profilePicture: profile?.profilePicture,
+          bio: profile?.bio,
+          interests: profile?.interests || [],
+        },
+      };
+    });
 
     res.status(200).json({
       success: true,
@@ -338,29 +365,37 @@ export const getLikesSent = async (req, res) => {
     }).populate({
       path: "likedId",
       select: "name email",
-      populate: {
-        path: "userId",
-        model: "Profile",
-        select: "name age gender location photoUrls bio interests",
-      },
+    });
+
+    // Get profiles for the liked users
+    const likedUserIds = likesSent.map((like) => like.likedId._id);
+    const profiles = await Profile.find({ userId: { $in: likedUserIds } });
+
+    // Create a map for quick lookup
+    const profileMap = {};
+    profiles.forEach((profile) => {
+      profileMap[profile.userId.toString()] = profile;
     });
 
     // Transform the data
-    const transformedLikesSent = likesSent.map((like) => ({
-      likeId: like._id,
-      likedAt: like.likedAt,
-      user: {
-        id: like.likedId._id,
-        name: like.likedId.name,
-        age: like.likedId.userId?.age,
-        gender: like.likedId.userId?.gender,
-        location: like.likedId.userId?.location,
-        photoUrls: like.likedId.userId?.photoUrls || [],
-        profilePicture: like.likedId.userId?.profilePicture,
-        bio: like.likedId.userId?.bio,
-        interests: like.likedId.userId?.interests || [],
-      },
-    }));
+    const transformedLikesSent = likesSent.map((like) => {
+      const profile = profileMap[like.likedId._id.toString()];
+      return {
+        likeId: like._id,
+        likedAt: like.likedAt,
+        user: {
+          id: like.likedId._id,
+          name: like.likedId.name,
+          age: profile?.age,
+          gender: profile?.gender,
+          location: profile?.location,
+          photoUrls: profile?.photoUrls || [],
+          profilePicture: profile?.profilePicture,
+          bio: profile?.bio,
+          interests: profile?.interests || [],
+        },
+      };
+    });
 
     res.status(200).json({
       success: true,
