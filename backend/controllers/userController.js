@@ -1,9 +1,10 @@
+import crypto from "crypto";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import User from "../models/user.js";
 
-/** Generate a signed JWT for a user */
-export const generateToken = (user) => {
+/** Generate a short-lived access token (15 min) */
+export const generateAccessToken = (user) => {
   return jwt.sign(
     {
       id: user._id,
@@ -13,9 +14,20 @@ export const generateToken = (user) => {
       hasCompletedProfile: user.hasCompletedProfile || false,
     },
     process.env.JWT_SECRET,
-    { expiresIn: "24h" }
+    { expiresIn: "15m" }
   );
 };
+
+/** Generate an opaque refresh token and persist it on the user doc */
+export const generateRefreshToken = async (user) => {
+  const token = crypto.randomBytes(40).toString("hex");
+  user.refreshToken = token;
+  await user.save();
+  return token;
+};
+
+/** Kept for backwards compat (profileController uses it) */
+export const generateToken = generateAccessToken;
 
 // @desc    Register a new user
 // @route   POST /api/users/register
@@ -48,8 +60,18 @@ export const register = async (req, res) => {
 
     await newUser.save();
 
-    // Generate token
-    const token = generateToken(newUser);
+    // Generate tokens
+    const token = generateAccessToken(newUser);
+    const refreshToken = await generateRefreshToken(newUser);
+
+    // Set refresh token as httpOnly cookie
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      path: "/",
+    });
 
     // Return response
     res.status(201).json({
@@ -110,7 +132,17 @@ export const login = async (req, res) => {
     }
 
     console.log("Authentication successful, generating token...");
-    const token = generateToken(user);
+    const token = generateAccessToken(user);
+    const refreshToken = await generateRefreshToken(user);
+
+    // Set refresh token as httpOnly cookie
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      path: "/",
+    });
 
     const userResponse = {
       id: user._id,
@@ -176,6 +208,10 @@ export const getProfile = async (req, res) => {
 export const updateProfile = async (req, res) => {
   console.log("📤 Update profile hit");
   try {
+    if (req.userId !== req.params.id) {
+      return res.status(403).json({ message: "Not authorized to update this profile" });
+    }
+
     const updates = req.body;
     if (updates.password) {
       updates.password = await bcrypt.hash(updates.password, 10);
@@ -208,93 +244,57 @@ export const getAllUsers = async (req, res) => {
   }
 };
 
-/**
- * Helper function to handle like/dislike logic
- */
-const updateLikeRelationship = async (currentUserId, targetUserId, action) => {
-  const currentUser = await User.findById(currentUserId);
-  const targetUser = await User.findById(targetUserId);
-
-  if (!targetUser) throw new Error("Target user not found");
-
-  const alreadyLiked = currentUser.likes.includes(targetUserId);
-
-  if (action === "like" && !alreadyLiked) {
-    currentUser.likes.push(targetUserId);
-    targetUser.followers.push(currentUserId);
-  } else if (action === "dislike" && alreadyLiked) {
-    currentUser.likes.pull(targetUserId);
-    targetUser.followers.pull(currentUserId);
-  }
-
-  await currentUser.save();
-  await targetUser.save();
-};
-
-// @desc    Like a user
-// @route   POST /api/users/like/:id
-// @access  Private
-export const likeUser = async (req, res) => {
+// @desc    Refresh access token using refresh token cookie
+// @route   POST /api/users/refresh
+// @access  Public (uses cookie)
+export const refreshAccessToken = async (req, res) => {
   try {
-    if (req.userId === req.params.id) {
-      return res.status(400).json({ message: "You can't like yourself" });
+    const { refreshToken } = req.cookies;
+    if (!refreshToken) {
+      return res.status(401).json({ message: "No refresh token" });
     }
 
-    await updateLikeRelationship(req.userId, req.params.id, "like");
+    const user = await User.findOne({ refreshToken });
+    if (!user) {
+      return res.status(401).json({ message: "Invalid refresh token" });
+    }
 
-    res.status(200).json({
-      message: "User liked successfully",
+    // Issue new access token
+    const token = generateAccessToken(user);
+
+    // Rotate refresh token
+    const newRefreshToken = await generateRefreshToken(user);
+    res.cookie("refreshToken", newRefreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: "/",
     });
+
+    res.json({ success: true, token });
   } catch (error) {
-    console.error("🔥 Error in likeUser:", error.message);
-    res.status(500).json({ error: "Error liking user" });
+    console.error("Refresh token error:", error);
+    res.status(500).json({ message: "Failed to refresh token" });
   }
 };
 
-// @desc    Dislike a user
-// @route   POST /api/users/dislike/:id
+// @desc    Logout — clear refresh token
+// @route   POST /api/users/logout
 // @access  Private
-export const dislikeUser = async (req, res) => {
+export const logoutUser = async (req, res) => {
   try {
-    if (req.userId === req.params.id) {
-      return res.status(400).json({ message: "You can't dislike yourself" });
+    // Clear refresh token from DB
+    const { refreshToken } = req.cookies;
+    if (refreshToken) {
+      await User.findOneAndUpdate({ refreshToken }, { refreshToken: null });
     }
 
-    await updateLikeRelationship(req.userId, req.params.id, "dislike");
-
-    res.status(200).json({
-      message: "User disliked successfully",
-    });
+    res.clearCookie("refreshToken", { path: "/" });
+    res.json({ success: true, message: "Logged out" });
   } catch (error) {
-    console.error("🔥 Error in dislikeUser:", error.message);
-    res.status(500).json({ error: "Error disliking user" });
+    console.error("Logout error:", error);
+    res.status(500).json({ message: "Failed to logout" });
   }
 };
 
-/**
- * @desc    Get mutual matches (users you like who also like you back)
- * @route   GET /api/users/matches
- * @access  Private
- */
-export const getMatches = async (req, res) => {
-  try {
-    const currentUser = await User.findById(req.userId); // assuming req.userId is available in req.user.id
-
-    if (!currentUser)
-      return res.status(404).json({ message: "User not found" });
-
-    const matchedUsers = await User.find({
-      _id: { $in: currentUser.likes }, // matches are mutual followers
-      likes: req.userId,
-    }).select("-password");
-
-    if (matchedUsers.length === 0) {
-      return res.status(404).json({ message: "No matches found" });
-    }
-
-    res.status(200).json(matchedUsers);
-  } catch (error) {
-    console.error("🔥 Error in getMatches:", error.message);
-    res.status(500).json({ error: "Error fetching matches" });
-  }
-};
