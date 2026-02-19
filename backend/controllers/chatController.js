@@ -7,7 +7,7 @@ import Match from "../models/Match.js";
 // Get all chats for the current user
 export const getChats = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.userId;
 
     // Find all chats where the current user is a participant
     const chats = await Chat.find({
@@ -63,7 +63,7 @@ export const getChats = async (req, res) => {
 export const getMessages = async (req, res) => {
   try {
     const { chatId } = req.params;
-    const userId = req.user.id;
+    const userId = req.userId;
 
     // Verify the user is a participant in this chat
     const chat = await Chat.findOne({ chatId, participants: userId });
@@ -89,7 +89,7 @@ export const getMessages = async (req, res) => {
     }));
 
     // Mark messages as read for the current user
-    await markMessagesAsRead(chatId, userId);
+    await markMessagesAsReadHelper(chatId, userId);
 
     res.json(formattedMessages);
   } catch (error) {
@@ -103,7 +103,7 @@ export const sendMessage = async (req, res) => {
   try {
     const { chatId } = req.params;
     const { content, type = "text" } = req.body;
-    const userId = req.user.id;
+    const userId = req.userId;
 
     if (!content || content.trim().length === 0) {
       return res.status(400).json({ message: "Message content is required" });
@@ -163,39 +163,44 @@ export const sendMessage = async (req, res) => {
   }
 };
 
-// Mark messages as read
+// Shared helper: mark messages as read for a user in a chat
+export const markMessagesAsReadHelper = async (chatId, userId) => {
+  const chat = await Chat.findOne({ chatId, participants: userId });
+  if (!chat) return;
+
+  await Message.updateMany(
+    {
+      chatId,
+      senderId: { $ne: userId },
+      "readBy.userId": { $ne: userId },
+    },
+    {
+      $push: {
+        readBy: {
+          userId,
+          readAt: new Date(),
+        },
+      },
+      $set: { status: "read" },
+    }
+  );
+
+  chat.unreadCounts.set(userId, 0);
+  await chat.save();
+};
+
+// Mark messages as read (HTTP handler)
 export const markMessagesAsRead = async (req, res) => {
   try {
     const { chatId } = req.params;
-    const userId = req.user.id;
+    const userId = req.userId;
 
-    // Verify the user is a participant in this chat
     const chat = await Chat.findOne({ chatId, participants: userId });
     if (!chat) {
       return res.status(404).json({ message: "Chat not found" });
     }
 
-    // Mark messages as read
-    await Message.updateMany(
-      {
-        chatId,
-        senderId: { $ne: userId }, // Messages not sent by current user
-        "readBy.userId": { $ne: userId }, // Not already read by current user
-      },
-      {
-        $push: {
-          readBy: {
-            userId,
-            readAt: new Date(),
-          },
-        },
-        $set: { status: "read" },
-      }
-    );
-
-    // Reset unread count for current user
-    chat.unreadCounts.set(userId, 0);
-    await chat.save();
+    await markMessagesAsReadHelper(chatId, userId);
 
     res.json({ message: "Messages marked as read" });
   } catch (error) {
@@ -208,7 +213,7 @@ export const markMessagesAsRead = async (req, res) => {
 export const createChat = async (req, res) => {
   try {
     const { otherUserId } = req.body;
-    const userId = req.user.id;
+    const userId = req.userId;
 
     if (!otherUserId) {
       return res.status(400).json({ message: "Other user ID is required" });
@@ -290,7 +295,7 @@ export const createChat = async (req, res) => {
 export const getChatById = async (req, res) => {
   try {
     const { chatId } = req.params;
-    const userId = req.user.id;
+    const userId = req.userId;
 
     // Verify the user is a participant in this chat
     const chat = await Chat.findOne({ chatId, participants: userId }).populate(
@@ -337,7 +342,7 @@ export const getChatById = async (req, res) => {
 export const deleteChat = async (req, res) => {
   try {
     const { chatId } = req.params;
-    const userId = req.user.id;
+    const userId = req.userId;
 
     // Verify the user is a participant in this chat
     const chat = await Chat.findOne({ chatId, participants: userId });
