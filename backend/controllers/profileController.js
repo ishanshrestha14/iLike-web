@@ -1,12 +1,13 @@
 import Profile from "../models/Profile.js";
 import User from "../models/user.js";
+import { generateAccessToken } from "./userController.js";
 
 // @desc    Get current user's profile
 // @route   GET /api/profile/me
 // @access  Private
 export const getProfile = async (req, res) => {
   try {
-    const profile = await Profile.findOne({ userId: req.user.id }).select(
+    const profile = await Profile.findOne({ userId: req.user._id }).select(
       "-__v -createdAt -updatedAt"
     );
 
@@ -20,33 +21,6 @@ export const getProfile = async (req, res) => {
   } catch (error) {
     console.error("Error fetching profile:", error);
     res.status(500).json({ success: false, message: "Server error" });
-  }
-};
-
-// @desc    Upload a photo
-// @route   POST /api/profile/upload
-// @access  Private
-export const uploadPhoto = async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: "No file uploaded",
-      });
-    }
-
-    // Return the URL of the uploaded file
-    const photoUrl = `/uploads/profiles/${req.file.filename}`;
-    res.json({
-      success: true,
-      url: photoUrl,
-    });
-  } catch (error) {
-    console.error("Error uploading photo:", error);
-    res.status(500).json({
-      success: false,
-      message: "Server error while uploading photo",
-    });
   }
 };
 
@@ -117,11 +91,8 @@ export const setupProfile = async (req, res) => {
     const uploadedPhotos = [];
 
     // Handle photos upload from any client
-    if (req.files) {
-      const photoFiles = req.files.photos || [];
-      uploadedPhotos.push(
-        ...photoFiles.map((file) => `/uploads/profiles/${file.filename}`)
-      );
+    if (req.files && req.files.length > 0) {
+      uploadedPhotos.push(...req.files.map((file) => file.path));
     }
 
     // Combine existing and uploaded photos
@@ -134,12 +105,9 @@ export const setupProfile = async (req, res) => {
       });
     }
 
-    // Set default profile picture if not provided
-    const defaultProfilePicture = "/uploads/profiles/default-avatar.png";
-
     // Prepare profile data
     const profileData = {
-      userId: req.user.id,
+      userId: req.user._id,
       name,
       gender,
       location,
@@ -149,17 +117,17 @@ export const setupProfile = async (req, res) => {
       interests: interestsArray,
       height,
       photoUrls,
-      profilePicture: defaultProfilePicture,
+      profilePictureUrl: photoUrls[0] || null,
       isProfileComplete: true,
     };
 
     // Find and update or create profile
-    let profile = await Profile.findOne({ userId: req.user.id });
+    let profile = await Profile.findOne({ userId: req.user._id });
 
     if (profile) {
       // Update existing profile
       profile = await Profile.findOneAndUpdate(
-        { userId: req.user.id },
+        { userId: req.user._id },
         { $set: profileData },
         { new: true, runValidators: true }
       );
@@ -170,12 +138,20 @@ export const setupProfile = async (req, res) => {
     }
 
     // Update user's profile completion status
-    await User.findByIdAndUpdate(req.user.id, { hasCompletedProfile: true });
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user._id,
+      { hasCompletedProfile: true },
+      { new: true }
+    );
+
+    // Generate new access token with updated hasCompletedProfile status
+    const newToken = generateAccessToken(updatedUser);
 
     res.json({
       success: true,
       message: "Profile saved successfully",
       data: profile,
+      token: newToken, // Return new token
     });
   } catch (error) {
     console.error("Error saving profile - Full error:", error);
@@ -237,12 +213,12 @@ export const updateProfile = async (req, res) => {
 
     // Handle file upload if exists
     if (req.file) {
-      updates.profilePicture = `/uploads/profiles/${req.file.filename}`;
+      updates.profilePictureUrl = req.file.path;
     }
 
     // Update profile
     const profile = await Profile.findOneAndUpdate(
-      { userId: req.user.id },
+      { userId: req.user._id },
       { $set: updates },
       { new: true, runValidators: true }
     );
@@ -287,11 +263,11 @@ export const updateProfilePicture = async (req, res) => {
       });
     }
 
-    const profilePictureUrl = `/uploads/profiles/${req.file.filename}`;
+    const profilePictureUrl = req.file.path;
 
     // Update profile with new profile picture
     const profile = await Profile.findOneAndUpdate(
-      { userId: req.user.id },
+      { userId: req.user._id },
       { $set: { profilePictureUrl } },
       { new: true }
     );
@@ -313,6 +289,34 @@ export const updateProfilePicture = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Server error while updating profile picture",
+    });
+  }
+};
+
+// @desc    Upload individual photo during onboarding
+// @route   POST /api/profile/upload
+// @access  Private
+export const uploadIndividualPhoto = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "No file uploaded",
+      });
+    }
+
+    // Return the URL of the uploaded file
+    const photoUrl = req.file.path;
+
+    res.json({
+      success: true,
+      url: photoUrl,
+    });
+  } catch (error) {
+    console.error("Error uploading photo:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error while uploading photo",
     });
   }
 };
