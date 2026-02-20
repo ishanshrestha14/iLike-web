@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { AuthContext } from "./AuthContext";
 import { authService } from "@/services/userService";
+import api from "@/services/api";
 import type { AuthContextType, User } from "./auth.types";
 
 interface AuthProviderProps {
@@ -50,20 +51,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setUser(parsedUser);
         }
 
-        // Fetch current user's profile using the proxy path
-        const response = await fetch("/api/users/me", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-        });
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch user profile");
-        }
-
-        const userData = await response.json();
+        // Fetch current user's profile using axios (supports silent refresh)
+        const { data: userData } = await api.get("/users/me");
         // Ensure isAdmin is always a boolean and merge with existing user data
         const normalizedUser = {
           ...userData,
