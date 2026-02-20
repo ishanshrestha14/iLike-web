@@ -1,8 +1,22 @@
-import { Routes, Route, Navigate, Outlet } from "react-router-dom";
-import { lazy, Suspense } from "react";
+import { Routes, Route, Navigate, Outlet, useLocation, useNavigationType } from "react-router-dom";
+import { lazy, Suspense, useEffect } from "react";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ProfileCheck } from "@/components/auth/ProfileCheck";
 import { useAuth } from "@/context/AuthContext";
+
+// Scroll to top on forward navigation (not back/forward)
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  const navType = useNavigationType();
+
+  useEffect(() => {
+    if (navType !== 'POP') {
+      window.scrollTo(0, 0);
+    }
+  }, [pathname, navType]);
+
+  return null;
+}
 // Lazy load pages for better performance
 const AuthPage = lazy(() => import("@/pages/AuthPage"));
 const HomePage = lazy(() => import("@/pages/HomePage"));
@@ -31,6 +45,7 @@ const AppRoutes = () => {
 
   return (
     <Suspense fallback={<LoadingSpinner />}>
+      <ScrollToTop />
       <Routes>
         {/* Public routes */}
         <Route path="/" element={<Navigate to="/auth" replace />} />

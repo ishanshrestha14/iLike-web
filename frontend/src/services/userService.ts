@@ -1,7 +1,7 @@
 import api from "./api";
 
 export interface User {
-  _id?: string;
+  id?: string;
   name: string;
   email: string;
   password?: string;
@@ -24,7 +24,7 @@ export interface LoginCredentials {
   password: string;
 }
 
-export interface RegisterData extends Omit<User, "_id" | 'isAdmin'> {
+export interface RegisterData extends Omit<User, "id" | 'isAdmin'> {
   password: string;
   isAdmin?: boolean;
 }

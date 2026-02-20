@@ -19,10 +19,8 @@ import type { ChatSummary, ChatMessage } from "@/services/chatService";
 import * as socketService from "@/services/socketService";
 import * as blockReportService from "@/services/blockReportService";
 import type { ReportReason } from "@/services/blockReportService";
-
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL?.replace("/api", "") ||
-  "http://localhost:5000";
+import { SERVER_BASE_URL } from "@/services/api";
+import { toast } from "react-toastify";
 
 const ConversationItem = React.memo(
   ({
@@ -176,8 +174,7 @@ const ChatPage: React.FC = () => {
               setConversations((prev) => [newChat, ...prev]);
               setSelectedChat(newChat);
             } catch {
-              // Match might not exist or not be mutual
-              console.error("Could not create chat with this match");
+              toast.error("Could not start chat — match may no longer exist");
             }
           }
         }
@@ -364,10 +361,10 @@ const ChatPage: React.FC = () => {
 
   const getProfilePicUrl = (chat: ChatSummary): string | undefined => {
     if (chat.otherUserProfilePicture) {
-      return `${API_BASE}${chat.otherUserProfilePicture}`;
+      return `${SERVER_BASE_URL}${chat.otherUserProfilePicture}`;
     }
     if (chat.otherUserPhotoUrls?.length > 0) {
-      return `${API_BASE}${chat.otherUserPhotoUrls[0]}`;
+      return `${SERVER_BASE_URL}${chat.otherUserPhotoUrls[0]}`;
     }
     return undefined;
   };
@@ -435,7 +432,7 @@ const ChatPage: React.FC = () => {
     const optimisticMsg: ChatMessage = {
       messageId: `temp_${Date.now()}`,
       chatId: selectedChat.chatId,
-      senderId: user?._id || "",
+      senderId: user?.id || "",
       content,
       type: "text",
       status: "sending",

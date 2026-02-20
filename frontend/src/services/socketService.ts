@@ -1,8 +1,5 @@
 import { io, Socket } from "socket.io-client";
-
-const SOCKET_URL =
-  import.meta.env.VITE_API_BASE_URL?.replace("/api", "") ||
-  "http://localhost:5000";
+import { SERVER_BASE_URL } from "@/services/api";
 
 // Types matching backend socket events
 export interface SocketMessage {
@@ -47,7 +44,7 @@ export const connect = (): Socket => {
   const token = localStorage.getItem("token");
   if (!token) throw new Error("No auth token found");
 
-  socket = io(SOCKET_URL, {
+  socket = io(SERVER_BASE_URL, {
     auth: { token },
     transports: ["websocket", "polling"],
   });

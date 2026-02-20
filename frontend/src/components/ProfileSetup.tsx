@@ -12,6 +12,7 @@ import { setupProfile, base64ToFile } from "@/services/profileService";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { useAuth } from "@/context/AuthContext";
+import { useNavigate } from "react-router-dom";
 import type { User } from "@/context/auth.types";
 
 interface ProfileData {
@@ -81,6 +82,7 @@ const ProfileSetup = () => {
   ];
 
   const { user: currentUser, setUser } = useAuth();
+  const navigate = useNavigate();
 
   const handleNext = () => {
     if (canProceed()) {
@@ -130,7 +132,7 @@ const ProfileSetup = () => {
         toast.success("Profile setup completed successfully!");
 
         setTimeout(() => {
-          window.location.href = "/home";
+          navigate("/home");
         }, 1000);
       } else {
         toast.error(result.message || "Failed to setup profile");
@@ -167,10 +169,13 @@ const ProfileSetup = () => {
       }
     }
 
-    setProfileData((prev) => ({
-      ...prev,
-      photoUrls: [...prev.photoUrls, ...newPhotos].slice(0, 6), // Limit to 6 photos
-    }));
+    setProfileData((prev) => {
+      const combined = [...prev.photoUrls, ...newPhotos];
+      if (combined.length > 6) {
+        toast.warning(`Only 6 photos allowed — ${combined.length - 6} photo(s) were not added`);
+      }
+      return { ...prev, photoUrls: combined.slice(0, 6) };
+    });
   };
 
   const canProceed = () => {

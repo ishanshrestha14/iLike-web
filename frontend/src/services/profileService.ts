@@ -1,9 +1,5 @@
-import axios from "axios";
 import type { AxiosResponse } from "axios";
-import { getAuthHeader } from "@/services/authService";
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
-const API_URL = `${API_BASE}/profile`;
+import api from "@/services/api";
 
 export interface ProfileData {
   name: string;
@@ -22,7 +18,7 @@ export interface ProfileData {
     genders?: string[];
     maxDistance?: number;
   };
-  _id?: string;
+  id?: string;
   userId?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -66,10 +62,9 @@ export const setupProfile = async (profileData: SetupProfileData) => {
     });
   }
 
-  const response = await axios.post(`${API_URL}/setup`, formData, {
+  const response = await api.post("/profile/setup", formData, {
     headers: {
       "Content-Type": "multipart/form-data",
-      ...getAuthHeader(),
     },
   });
   return response.data;
@@ -77,11 +72,8 @@ export const setupProfile = async (profileData: SetupProfileData) => {
 
 export const getProfile = async (): Promise<ApiResponse<ProfileData>> => {
   try {
-    const response: AxiosResponse<ApiResponse<ProfileData>> = await axios.get(
-      `${API_URL}/me`,
-      {
-        headers: getAuthHeader(),
-      }
+    const response: AxiosResponse<ApiResponse<ProfileData>> = await api.get(
+      "/profile/me"
     );
     return response.data;
   } catch (error) {
@@ -114,10 +106,9 @@ export const updateProfile = async (
     }
   });
 
-  const response = await axios.put(`${API_URL}/update`, formData, {
+  const response = await api.put("/profile/update", formData, {
     headers: {
       "Content-Type": "multipart/form-data",
-      ...getAuthHeader(),
     },
   });
 
@@ -138,29 +129,18 @@ export const uploadProfilePicture = async (file: File): Promise<string> => {
   const formData = new FormData();
   formData.append("profilePicture", file);
 
-  const token = localStorage.getItem("token");
-  if (!token) {
-    throw new Error("No authentication token found");
+  const response = await api.put<{
+    success: boolean;
+    data: { profilePictureUrl: string };
+  }>("/profile/picture", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+
+  if (!response.data.success) {
+    throw new Error("Failed to update profile picture");
   }
 
-  try {
-    const response = await axios.put<{
-      success: boolean;
-      data: { profilePictureUrl: string };
-    }>(`${API_URL}/picture`, formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    if (!response.data.success) {
-      throw new Error("Failed to update profile picture");
-    }
-
-    return response.data.data.profilePictureUrl;
-  } catch (error) {
-    console.error("Error uploading profile picture:", error);
-    throw error;
-  }
+  return response.data.data.profilePictureUrl;
 };
