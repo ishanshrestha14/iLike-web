@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import MainLayout from "@/layouts/MainLayout";
 import {
-  // getProfile,
-  // updateProfile,
+  getProfile,
+  updateProfile,
   type ProfileData,
 } from "@/services/profileService";
 import {
@@ -27,46 +27,19 @@ const ProfilePage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Mock profile data for demo
-  const mockProfile: ProfileData = {
-    _id: "1",
-    name: "Roshan Kumar",
-    age: 26,
-    gender: "Male",
-    location: "Kathmandu, Nepal",
-    bio: "I am a software engineer and a coffee enthusiast ☕️ Love hiking, photography, and trying new cuisines. Always looking for the next exciting experience!",
-    profilePictureUrl:
-      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400",
-    photoUrls: [
-      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400",
-      "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400",
-      "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400",
-      "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400",
-      "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=400",
-    ],
-    interests: ["Hiking", "Coffee", "Photography", "Travel", "Cooking"],
-    intentions: ["Long-term", "Short-term"],
-    height: "5'10",
-  };
-
   useEffect(() => {
     loadProfile();
   }, []);
 
   const loadProfile = async () => {
     try {
-      // For demo, use mock data
-      setProfile(mockProfile);
-      setEditedProfile(mockProfile);
-
-      // Uncomment when backend is ready
-      // const response = await getProfile();
-      // if (response.success && response.data) {
-      //   setProfile(response.data);
-      //   setEditedProfile(response.data);
-      // } else {
-      //   toast.error("Failed to load profile");
-      // }
+      const response = await getProfile();
+      if (response.success && response.data) {
+        setProfile(response.data);
+        setEditedProfile(response.data);
+      } else {
+        toast.error("Failed to load profile");
+      }
     } catch (error: unknown) {
       console.error("Profile loading error:", error);
       toast.error("Error loading profile");
@@ -90,20 +63,14 @@ const ProfilePage = () => {
 
     setIsSaving(true);
     try {
-      // For demo, just update local state
-      setProfile(editedProfile);
-      setIsEditing(false);
-      toast.success("Profile updated successfully!");
-
-      // Uncomment when backend is ready
-      // const response = await updateProfile(editedProfile);
-      // if (response.success) {
-      //   setProfile(response.data);
-      //   setIsEditing(false);
-      //   toast.success("Profile updated successfully");
-      // } else {
-      //   toast.error(response.message || "Failed to update profile");
-      // }
+      const response = await updateProfile(editedProfile);
+      if (response.success) {
+        setProfile(response.data);
+        setIsEditing(false);
+        toast.success("Profile updated successfully!");
+      } else {
+        toast.error(response.message || "Failed to update profile");
+      }
     } catch (error: unknown) {
       console.error("Profile update error:", error);
       toast.error("Error updating profile");

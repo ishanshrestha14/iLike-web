@@ -96,7 +96,7 @@ export const updateProfile = async (
   // Append all non-null/undefined fields to formData
   Object.entries(profileData).forEach(([key, value]) => {
     if (value !== null && value !== undefined) {
-      if (key === "interests" || key === "intentions") {
+      if (key === "interests" || key === "intentions" || key === "photoUrls") {
         formData.append(key, JSON.stringify(value));
       } else if (key === "photos" && Array.isArray(value)) {
         (value as File[]).forEach((photo) => {
