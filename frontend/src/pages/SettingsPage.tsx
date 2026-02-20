@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import MainLayout from "@/layouts/MainLayout";
 import {
   User,
@@ -17,42 +17,147 @@ import {
   Settings as SettingsIcon,
 } from "lucide-react";
 import { toast } from "react-toastify";
+import { useAuth } from "@/context/AuthContext";
+import {
+  getServerSettings,
+  updateServerSettings,
+  getAppSettings,
+  saveAppSettings,
+  type ServerSettings,
+  type AppSettings,
+} from "@/services/settingsService";
+import { getProfile, updateProfile } from "@/services/profileService";
+
+// Keys grouped by storage backend
+const SERVER_KEYS = new Set([
+  "emailNotifications",
+  "pushNotifications",
+  "smsNotifications",
+  "profileVisibility",
+  "showOnlineStatus",
+  "showLastSeen",
+  "allowMessagesFrom",
+  "showMeTo",
+]);
+
+const APP_KEYS = new Set(["darkMode", "language", "autoPlayVideos", "soundEffects"]);
+
+interface AllSettings extends ServerSettings, AppSettings {
+  ageRange: { min: number; max: number };
+  maxDistance: number;
+}
 
 const SettingsPage = () => {
-  const [settings, setSettings] = useState({
-    // Account Settings
+  const { logout } = useAuth();
+  const [settings, setSettings] = useState<AllSettings>({
+    // Server: Notification
     emailNotifications: true,
     pushNotifications: true,
     smsNotifications: false,
-
-    // Privacy Settings
+    // Server: Privacy
     profileVisibility: "public",
     showOnlineStatus: true,
     showLastSeen: false,
     allowMessagesFrom: "matches",
-
-    // App Settings
+    // Server: Discovery
+    showMeTo: "everyone",
+    // App (localStorage)
     darkMode: false,
     language: "English",
     autoPlayVideos: true,
     soundEffects: true,
-
-    // Discovery Settings
-    showMeTo: "everyone",
+    // Profile preferences
     ageRange: { min: 18, max: 50 },
     maxDistance: 50,
   });
+  const [isLoading, setIsLoading] = useState(true);
 
-  const handleSettingChange = (
+  const loadSettings = useCallback(async () => {
+    try {
+      const [serverSettings, profileResponse] = await Promise.all([
+        getServerSettings().catch(() => null),
+        getProfile().catch(() => null),
+      ]);
+      const appSettings = getAppSettings();
+
+      setSettings((prev) => ({
+        ...prev,
+        // Server settings
+        ...(serverSettings && {
+          emailNotifications: serverSettings.emailNotifications,
+          pushNotifications: serverSettings.pushNotifications,
+          smsNotifications: serverSettings.smsNotifications,
+          profileVisibility: serverSettings.profileVisibility,
+          showOnlineStatus: serverSettings.showOnlineStatus,
+          showLastSeen: serverSettings.showLastSeen,
+          allowMessagesFrom: serverSettings.allowMessagesFrom,
+          showMeTo: serverSettings.showMeTo,
+        }),
+        // App settings
+        ...appSettings,
+        // Profile preferences
+        ...(profileResponse?.success &&
+          profileResponse.data?.preferences && {
+            ageRange: {
+              min: profileResponse.data.preferences.minAge ?? 18,
+              max: profileResponse.data.preferences.maxAge ?? 50,
+            },
+            maxDistance: profileResponse.data.preferences.maxDistance ?? 50,
+          }),
+      }));
+    } catch (error) {
+      console.error("Error loading settings:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
+
+  const handleSettingChange = async (
     key: string,
     value: string | number | boolean | object
   ) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
-    toast.success("Setting updated!");
+
+    try {
+      if (SERVER_KEYS.has(key)) {
+        await updateServerSettings({ [key]: value } as Partial<ServerSettings>);
+      } else if (APP_KEYS.has(key)) {
+        saveAppSettings({ [key]: value } as Partial<AppSettings>);
+      }
+      toast.success("Setting updated!");
+    } catch {
+      toast.error("Failed to save setting");
+    }
+  };
+
+  const handleDiscoveryChange = async (
+    field: "ageRange" | "maxDistance",
+    value: { min: number; max: number } | number
+  ) => {
+    setSettings((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const saveDiscoverySettings = async () => {
+    try {
+      await updateProfile({
+        preferences: {
+          minAge: settings.ageRange.min,
+          maxAge: settings.ageRange.max,
+          maxDistance: settings.maxDistance,
+        },
+      } as Parameters<typeof updateProfile>[0]);
+      toast.success("Discovery settings saved!");
+    } catch {
+      toast.error("Failed to save discovery settings");
+    }
   };
 
   const handleLogout = () => {
-    toast.info("Logout functionality coming soon!");
+    logout();
   };
 
   const handleDeleteAccount = () => {
@@ -105,6 +210,19 @@ const SettingsPage = () => {
       {children}
     </div>
   );
+
+  if (isLoading) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-pink-500 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading settings...</p>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
@@ -308,14 +426,13 @@ const SettingsPage = () => {
                       max="80"
                       value={settings.ageRange.min}
                       onChange={(e) =>
-                        setSettings((prev) => ({
-                          ...prev,
-                          ageRange: {
-                            ...prev.ageRange,
-                            min: parseInt(e.target.value),
-                          },
-                        }))
+                        handleDiscoveryChange("ageRange", {
+                          ...settings.ageRange,
+                          min: parseInt(e.target.value),
+                        })
                       }
+                      onMouseUp={saveDiscoverySettings}
+                      onTouchEnd={saveDiscoverySettings}
                       className="w-20"
                     />
                     <span className="text-sm text-gray-600">to</span>
@@ -325,14 +442,13 @@ const SettingsPage = () => {
                       max="80"
                       value={settings.ageRange.max}
                       onChange={(e) =>
-                        setSettings((prev) => ({
-                          ...prev,
-                          ageRange: {
-                            ...prev.ageRange,
-                            max: parseInt(e.target.value),
-                          },
-                        }))
+                        handleDiscoveryChange("ageRange", {
+                          ...settings.ageRange,
+                          max: parseInt(e.target.value),
+                        })
                       }
+                      onMouseUp={saveDiscoverySettings}
+                      onTouchEnd={saveDiscoverySettings}
                       className="w-20"
                     />
                   </div>
@@ -349,11 +465,13 @@ const SettingsPage = () => {
                     max="100"
                     value={settings.maxDistance}
                     onChange={(e) =>
-                      handleSettingChange(
+                      handleDiscoveryChange(
                         "maxDistance",
                         parseInt(e.target.value)
                       )
                     }
+                    onMouseUp={saveDiscoverySettings}
+                    onTouchEnd={saveDiscoverySettings}
                     className="w-32"
                   />
                 </SettingItem>

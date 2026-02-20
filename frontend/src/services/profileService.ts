@@ -16,6 +16,12 @@ export interface ProfileData {
   height: string;
   photoUrls: string[];
   profilePictureUrl: string | null;
+  preferences?: {
+    minAge?: number;
+    maxAge?: number;
+    genders?: string[];
+    maxDistance?: number;
+  };
   _id?: string;
   userId?: string;
   createdAt?: string;
