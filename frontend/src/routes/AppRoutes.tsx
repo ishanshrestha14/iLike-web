@@ -3,17 +3,16 @@ import { lazy, Suspense } from "react";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ProfileCheck } from "@/components/auth/ProfileCheck";
 import { useAuth } from "@/context/AuthContext";
-import AuthPage from "@/pages/AuthPage";
-import HomePage from "@/pages/HomePage";
-import ExplorePage from "@/pages/ExplorePage";
-import MatchesPage from "@/pages/MatchesPage";
-import ChatPage from "@/pages/ChatPage";
-import ProfilePage from "@/pages/ProfilePage";
-import SettingsPage from "@/pages/SettingsPage";
-import NotificationsPage from "@/pages/NotificationsPage";
-import ProfileSetup from "@/components/ProfileSetup";
-
 // Lazy load pages for better performance
+const AuthPage = lazy(() => import("@/pages/AuthPage"));
+const HomePage = lazy(() => import("@/pages/HomePage"));
+const ExplorePage = lazy(() => import("@/pages/ExplorePage"));
+const MatchesPage = lazy(() => import("@/pages/MatchesPage"));
+const ChatPage = lazy(() => import("@/pages/ChatPage"));
+const ProfilePage = lazy(() => import("@/pages/ProfilePage"));
+const SettingsPage = lazy(() => import("@/pages/SettingsPage"));
+const NotificationsPage = lazy(() => import("@/pages/NotificationsPage"));
+const ProfileSetup = lazy(() => import("@/components/ProfileSetup"));
 const AdminRoutes = lazy(() => import("@/routes/AdminRoutes"));
 
 // Loading component for Suspense fallback
