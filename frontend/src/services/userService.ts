@@ -86,10 +86,14 @@ export const authService = {
   },
 
   // Logout user
-  logout(): void {
+  async logout(): Promise<void> {
+    try {
+      await api.post("/users/logout");
+    } catch {
+      // Ignore errors — we're logging out anyway
+    }
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    // Redirect to login page or home page
     window.location.href = "/auth";
   },
 
@@ -153,19 +157,4 @@ export const authService = {
     return response.data;
   },
 
-  // Like a user
-  async likeUser(userId: string, targetUserId: string): Promise<void> {
-    await api.post(`/users/like/${targetUserId}`, { userId });
-  },
-
-  // Dislike a user
-  async dislikeUser(userId: string, targetUserId: string): Promise<void> {
-    await api.post(`/users/dislike/${targetUserId}`, { userId });
-  },
-
-  // Get user matches
-  async getMatches(userId: string): Promise<User[]> {
-    const response = await api.get<User[]>(`/users/matches?userId=${userId}`);
-    return response.data;
-  },
 };
