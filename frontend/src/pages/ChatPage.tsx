@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Navbar from "@/components/Navbar";
 import {
   Send,
@@ -23,6 +23,113 @@ import type { ReportReason } from "@/services/blockReportService";
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL?.replace("/api", "") ||
   "http://localhost:5000";
+
+const ConversationItem = React.memo(
+  ({
+    chat,
+    isSelected,
+    isOnline,
+    onClick,
+    getProfilePicUrl,
+    formatConversationTime,
+  }: {
+    chat: ChatSummary;
+    isSelected: boolean;
+    isOnline: boolean;
+    onClick: () => void;
+    getProfilePicUrl: (chat: ChatSummary) => string | undefined;
+    formatConversationTime: (date: string | Date) => string;
+  }) => {
+    const picUrl = getProfilePicUrl(chat);
+    return (
+      <div
+        onClick={onClick}
+        className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors border-b border-gray-100 ${
+          isSelected ? "bg-pink-50 border-pink-200" : ""
+        }`}
+      >
+        <div className="flex items-center space-x-3">
+          <div className="relative">
+            {picUrl ? (
+              <img
+                src={picUrl}
+                alt={chat.otherUserName}
+                className="w-12 h-12 rounded-full object-cover"
+              />
+            ) : (
+              <div className="w-12 h-12 rounded-full bg-gradient-to-r from-pink-400 to-red-400 flex items-center justify-center text-white font-bold text-lg">
+                {chat.otherUserName.charAt(0)}
+              </div>
+            )}
+            {isOnline && (
+              <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></div>
+            )}
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-gray-800 truncate">
+                {chat.otherUserName}
+              </h3>
+              <span className="text-xs text-gray-500">
+                {formatConversationTime(chat.lastMessageTime)}
+              </span>
+            </div>
+            <p className="text-sm text-gray-600 truncate mt-1">
+              {chat.isLastMessageFromMe && "You: "}
+              {chat.lastMessage}
+            </p>
+          </div>
+
+          {chat.unreadCount > 0 && (
+            <div className="bg-pink-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+              {chat.unreadCount}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+);
+
+const MessageBubble = React.memo(
+  ({
+    message,
+    formatTime,
+  }: {
+    message: ChatMessage;
+    formatTime: (date: string | Date) => string;
+  }) => (
+    <div
+      className={`flex ${message.isFromMe ? "justify-end" : "justify-start"}`}
+    >
+      <div
+        className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
+          message.isFromMe
+            ? "bg-gradient-to-r from-pink-500 to-red-500 text-white"
+            : "bg-white text-gray-800 shadow-sm"
+        }`}
+      >
+        <p className="text-sm">{message.content}</p>
+        <span
+          className={`flex items-center gap-1 text-xs mt-1 ${
+            message.isFromMe ? "text-pink-100" : "text-gray-500"
+          }`}
+        >
+          {formatTime(message.timestamp)}
+          {message.isFromMe &&
+            (message.status === "read" ? (
+              <CheckCheck className="w-3.5 h-3.5 text-blue-300" />
+            ) : message.status === "delivered" ? (
+              <CheckCheck className="w-3.5 h-3.5" />
+            ) : (
+              <Check className="w-3.5 h-3.5" />
+            ))}
+        </span>
+      </div>
+    </div>
+  )
+);
 
 const ChatPage: React.FC = () => {
   const { matchId } = useParams<{ matchId: string }>();
@@ -185,13 +292,15 @@ const ChatPage: React.FC = () => {
   useEffect(() => {
     if (!selectedChat) return;
 
+    let ignore = false;
+
     const loadMessages = async () => {
       try {
         const msgs = await chatService.getMessages(selectedChat.chatId);
-        setMessages(msgs);
+        if (!ignore) setMessages(msgs);
       } catch (error) {
         console.error("Failed to load messages:", error);
-        setMessages([]);
+        if (!ignore) setMessages([]);
       }
     };
 
@@ -209,6 +318,7 @@ const ChatPage: React.FC = () => {
     loadMessages();
 
     return () => {
+      ignore = true;
       socketService.leaveChat(selectedChat.chatId);
     };
   }, [selectedChat?.chatId]);
@@ -375,8 +485,12 @@ const ChatPage: React.FC = () => {
     navigate(`/chat/${chat.otherUserId}`);
   };
 
-  const filteredConversations = conversations.filter((c) =>
-    c.otherUserName.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredConversations = useMemo(
+    () =>
+      conversations.filter((c) =>
+        c.otherUserName.toLowerCase().includes(searchQuery.toLowerCase())
+      ),
+    [conversations, searchQuery]
   );
 
   const isOtherUserOnline =
@@ -434,55 +548,15 @@ const ChatPage: React.FC = () => {
                   </div>
                 ) : (
                   filteredConversations.map((chat) => (
-                    <div
+                    <ConversationItem
                       key={chat.chatId}
+                      chat={chat}
+                      isSelected={selectedChat?.chatId === chat.chatId}
+                      isOnline={onlineUsers.has(chat.otherUserId)}
                       onClick={() => selectConversation(chat)}
-                      className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors border-b border-gray-100 ${
-                        selectedChat?.chatId === chat.chatId
-                          ? "bg-pink-50 border-pink-200"
-                          : ""
-                      }`}
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div className="relative">
-                          {getProfilePicUrl(chat) ? (
-                            <img
-                              src={getProfilePicUrl(chat)}
-                              alt={chat.otherUserName}
-                              className="w-12 h-12 rounded-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-12 h-12 rounded-full bg-gradient-to-r from-pink-400 to-red-400 flex items-center justify-center text-white font-bold text-lg">
-                              {chat.otherUserName.charAt(0)}
-                            </div>
-                          )}
-                          {onlineUsers.has(chat.otherUserId) && (
-                            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></div>
-                          )}
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <h3 className="text-sm font-semibold text-gray-800 truncate">
-                              {chat.otherUserName}
-                            </h3>
-                            <span className="text-xs text-gray-500">
-                              {formatConversationTime(chat.lastMessageTime)}
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-600 truncate mt-1">
-                            {chat.isLastMessageFromMe && "You: "}
-                            {chat.lastMessage}
-                          </p>
-                        </div>
-
-                        {chat.unreadCount > 0 && (
-                          <div className="bg-pink-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                            {chat.unreadCount}
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                      getProfilePicUrl={getProfilePicUrl}
+                      formatConversationTime={formatConversationTime}
+                    />
                   ))
                 )}
               </div>
@@ -573,40 +647,11 @@ const ChatPage: React.FC = () => {
                       </div>
                     ) : (
                       messages.map((message) => (
-                        <div
+                        <MessageBubble
                           key={message.messageId}
-                          className={`flex ${
-                            message.isFromMe ? "justify-end" : "justify-start"
-                          }`}
-                        >
-                          <div
-                            className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
-                              message.isFromMe
-                                ? "bg-gradient-to-r from-pink-500 to-red-500 text-white"
-                                : "bg-white text-gray-800 shadow-sm"
-                            }`}
-                          >
-                            <p className="text-sm">{message.content}</p>
-                            <span
-                              className={`flex items-center gap-1 text-xs mt-1 ${
-                                message.isFromMe
-                                  ? "text-pink-100"
-                                  : "text-gray-500"
-                              }`}
-                            >
-                              {formatTime(message.timestamp)}
-                              {message.isFromMe && (
-                                message.status === "read" ? (
-                                  <CheckCheck className="w-3.5 h-3.5 text-blue-300" />
-                                ) : message.status === "delivered" ? (
-                                  <CheckCheck className="w-3.5 h-3.5" />
-                                ) : (
-                                  <Check className="w-3.5 h-3.5" />
-                                )
-                              )}
-                            </span>
-                          </div>
-                        </div>
+                          message={message}
+                          formatTime={formatTime}
+                        />
                       ))
                     )}
                     <div ref={messagesEndRef} />

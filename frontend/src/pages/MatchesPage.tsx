@@ -6,6 +6,104 @@ import { getMatches } from "@/services/matchService";
 import type { MatchResult } from "@/services/matchService";
 import * as socketService from "@/services/socketService";
 
+const MatchCard = React.memo(
+  ({
+    match,
+    isOnline,
+    onChat,
+    onView,
+    formatMatchDate,
+  }: {
+    match: MatchResult;
+    isOnline: boolean;
+    onChat: () => void;
+    onView: () => void;
+    formatMatchDate: (dateString: string) => string;
+  }) => (
+    <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 overflow-hidden border border-gray-100">
+      <div className="relative h-48 overflow-hidden">
+        <img
+          src={match.photos[0]}
+          alt={match.name}
+          className="w-full h-full object-cover"
+        />
+        <div className="absolute top-3 right-3 bg-white rounded-full p-2 shadow-md">
+          <Heart className="w-5 h-5 text-pink-500" />
+        </div>
+        {isOnline && (
+          <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm rounded-full px-2.5 py-1 shadow-md">
+            <div className="w-2.5 h-2.5 bg-green-500 rounded-full"></div>
+            <span className="text-xs font-medium text-gray-700">Online</span>
+          </div>
+        )}
+        {match.unreadCount && match.unreadCount > 0 && (
+          <div className="absolute top-3 left-3 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
+            {match.unreadCount}
+          </div>
+        )}
+      </div>
+
+      <div className="p-4">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-xl font-bold text-gray-800">
+            {match.name}, {match.age}
+          </h3>
+          <span className="text-sm text-gray-500">
+            {formatMatchDate(match.matchedAt)}
+          </span>
+        </div>
+
+        <div className="flex items-center text-gray-600 text-sm mb-3">
+          <MapPin className="w-4 h-4 mr-1" />
+          {match.distance}
+        </div>
+
+        <p className="text-gray-600 text-sm mb-4 line-clamp-2">{match.bio}</p>
+
+        <div className="flex flex-wrap gap-1 mb-4">
+          {match.interests.slice(0, 3).map((interest, index) => (
+            <span
+              key={index}
+              className="bg-pink-100 text-pink-800 px-2 py-1 rounded-full text-xs font-medium"
+            >
+              {interest}
+            </span>
+          ))}
+          {match.interests.length > 3 && (
+            <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-full text-xs font-medium">
+              +{match.interests.length - 3}
+            </span>
+          )}
+        </div>
+
+        {match.lastMessage && (
+          <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+            <p className="text-gray-600 text-sm line-clamp-2">
+              {match.lastMessage}
+            </p>
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          <button
+            onClick={onChat}
+            className="flex-1 bg-gradient-to-r from-pink-500 to-red-500 text-white py-2 px-4 rounded-xl font-medium hover:from-pink-600 hover:to-red-600 transition-colors flex items-center justify-center gap-2"
+          >
+            <MessageCircle className="w-4 h-4" />
+            Chat
+          </button>
+          <button
+            onClick={onView}
+            className="bg-gray-100 text-gray-700 py-2 px-4 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+          >
+            View
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+);
+
 const MatchesPage: React.FC = () => {
   const navigate = useNavigate();
   const [matches, setMatches] = useState<MatchResult[]>([]);
@@ -156,97 +254,14 @@ const MatchesPage: React.FC = () => {
         {/* Matches Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {matches.map((match) => (
-            <div
+            <MatchCard
               key={match.id}
-              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 overflow-hidden border border-gray-100"
-            >
-              {/* Match Image */}
-              <div className="relative h-48 overflow-hidden">
-                <img
-                  src={match.photos[0]}
-                  alt={match.name}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute top-3 right-3 bg-white rounded-full p-2 shadow-md">
-                  <Heart className="w-5 h-5 text-pink-500" />
-                </div>
-                {onlineUsers.has(match.id) && (
-                  <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm rounded-full px-2.5 py-1 shadow-md">
-                    <div className="w-2.5 h-2.5 bg-green-500 rounded-full"></div>
-                    <span className="text-xs font-medium text-gray-700">Online</span>
-                  </div>
-                )}
-                {match.unreadCount && match.unreadCount > 0 && (
-                  <div className="absolute top-3 left-3 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
-                    {match.unreadCount}
-                  </div>
-                )}
-              </div>
-
-              {/* Match Info */}
-              <div className="p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-xl font-bold text-gray-800">
-                    {match.name}, {match.age}
-                  </h3>
-                  <span className="text-sm text-gray-500">
-                    {formatMatchDate(match.matchedAt)}
-                  </span>
-                </div>
-
-                <div className="flex items-center text-gray-600 text-sm mb-3">
-                  <MapPin className="w-4 h-4 mr-1" />
-                  {match.distance}
-                </div>
-
-                <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-                  {match.bio}
-                </p>
-
-                {/* Interests */}
-                <div className="flex flex-wrap gap-1 mb-4">
-                  {match.interests.slice(0, 3).map((interest, index) => (
-                    <span
-                      key={index}
-                      className="bg-pink-100 text-pink-800 px-2 py-1 rounded-full text-xs font-medium"
-                    >
-                      {interest}
-                    </span>
-                  ))}
-                  {match.interests.length > 3 && (
-                    <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-full text-xs font-medium">
-                      +{match.interests.length - 3}
-                    </span>
-                  )}
-                </div>
-
-                {/* Last Message */}
-                {match.lastMessage && (
-                  <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                    <p className="text-gray-600 text-sm line-clamp-2">
-                      {match.lastMessage}
-                    </p>
-                  </div>
-                )}
-
-                {/* Action Buttons */}
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleStartChat(match)}
-                    className="flex-1 bg-gradient-to-r from-pink-500 to-red-500 text-white py-2 px-4 rounded-xl font-medium hover:from-pink-600 hover:to-red-600 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <MessageCircle className="w-4 h-4" />
-                    Chat
-                  </button>
-                  <button
-                    onClick={() => setSelectedMatch(match)}
-                    className="bg-gray-100 text-gray-700 py-2 px-4 rounded-xl font-medium hover:bg-gray-200 transition-colors"
-                  >
-                    View
-                  </button>
-                </div>
-              </div>
-            </div>
+              match={match}
+              isOnline={onlineUsers.has(match.id)}
+              onChat={() => handleStartChat(match)}
+              onView={() => setSelectedMatch(match)}
+              formatMatchDate={formatMatchDate}
+            />
           ))}
         </div>
 
