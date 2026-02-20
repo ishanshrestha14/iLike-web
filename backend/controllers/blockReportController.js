@@ -1,5 +1,7 @@
 import Block from "../models/Block.js";
 import Report from "../models/Report.js";
+import Match from "../models/Match.js";
+import Chat from "../models/Chat.js";
 import User from "../models/user.js";
 import { isValidObjectId } from "../utils/validate.js";
 
@@ -31,6 +33,20 @@ export const blockUser = async (req, res) => {
     }
 
     await Block.create({ blockerId, blockedId });
+
+    // Remove all Match records between the two users
+    await Match.deleteMany({
+      $or: [
+        { likerId: blockerId, likedId: blockedId },
+        { likerId: blockedId, likedId: blockerId },
+      ],
+    });
+
+    // Soft-delete any shared chats
+    await Chat.updateMany(
+      { participants: { $all: [blockerId, blockedId] } },
+      { $set: { isActive: false } }
+    );
 
     res.json({ success: true, message: "User blocked" });
   } catch (error) {
