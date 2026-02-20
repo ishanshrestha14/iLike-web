@@ -1,5 +1,6 @@
 import express from "express";
 import { authenticateToken } from "../middleware/auth.js";
+import { apiLimiter, writeLimiter } from "../middleware/rateLimiter.js";
 import {
   getPotentialMatches,
   likeUser,
@@ -15,21 +16,21 @@ const router = express.Router();
 router.use(authenticateToken);
 
 // Get potential matches for the current user
-router.get("/potential", getPotentialMatches);
+router.get("/potential", apiLimiter, getPotentialMatches);
 
 // Like a user
-router.post("/like/:userId", likeUser);
+router.post("/like/:userId", writeLimiter, likeUser);
 
 // Dislike a user (remove like)
-router.delete("/like/:userId", dislikeUser);
+router.delete("/like/:userId", writeLimiter, dislikeUser);
 
 // Get user's matches
-router.get("/", getMatches);
+router.get("/", apiLimiter, getMatches);
 
 // Get user's likes (people who liked them)
-router.get("/likes", getLikes);
+router.get("/likes", apiLimiter, getLikes);
 
 // Get likes sent by current user
-router.get("/likes-sent", getLikesSent);
+router.get("/likes-sent", apiLimiter, getLikesSent);
 
 export default router;

@@ -1,5 +1,6 @@
 import express from "express";
 import { authenticateToken } from "../middleware/auth.js";
+import { apiLimiter, writeLimiter, messageLimiter } from "../middleware/rateLimiter.js";
 import {
   getChats,
   getMessages,
@@ -16,24 +17,24 @@ const router = express.Router();
 router.use(authenticateToken);
 
 // Get all chats for the current user
-router.get("/", getChats);
+router.get("/", apiLimiter, getChats);
 
 // Create a new chat
-router.post("/", createChat);
+router.post("/", writeLimiter, createChat);
 
 // Get chat by ID
-router.get("/:chatId", getChatById);
+router.get("/:chatId", apiLimiter, getChatById);
 
 // Get messages for a specific chat
-router.get("/:chatId/messages", getMessages);
+router.get("/:chatId/messages", apiLimiter, getMessages);
 
 // Send a message in a chat
-router.post("/:chatId/messages", sendMessage);
+router.post("/:chatId/messages", messageLimiter, sendMessage);
 
 // Mark messages as read in a chat
-router.put("/:chatId/read", markMessagesAsRead);
+router.put("/:chatId/read", apiLimiter, markMessagesAsRead);
 
 // Delete a chat (soft delete)
-router.delete("/:chatId", deleteChat);
+router.delete("/:chatId", writeLimiter, deleteChat);
 
 export default router;
