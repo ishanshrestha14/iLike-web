@@ -1,395 +1,266 @@
-# iLike - Modern Dating App Platform
+# iLike - Dating + Random Chat Platform
 
-A full-stack dating application built with **React + TypeScript** frontend and **Node.js + Express + MongoDB** backend, featuring real-time chat capabilities with Socket.IO.
+A full-stack dating application (Tinder + Omegle hybrid) built with **React + TypeScript** and **Node.js + Express + MongoDB**, featuring real-time chat, Cloudinary photo storage, refresh-token authentication, and block/report safety features.
 
-![iLike Platform](https://img.shields.io/badge/Platform-Dating%20App-blue)
-![Frontend](https://img.shields.io/badge/Frontend-React%20%2B%20TypeScript-61dafb)
-![Backend](https://img.shields.io/badge/Backend-Node.js%20%2B%20Express-339933)
-![Database](https://img.shields.io/badge/Database-MongoDB-47a248)
-![Real-time](https://img.shields.io/badge/Real--time-Socket.IO-010101)
+[![Platform](https://img.shields.io/badge/Platform-Dating%20%2B%20Chat-blue)](#)
+[![Frontend](https://img.shields.io/badge/Frontend-React%2019%20%2B%20TypeScript-61dafb)](#)
+[![Backend](https://img.shields.io/badge/Backend-Node.js%20%2B%20Express%205-339933)](#)
+[![Database](https://img.shields.io/badge/Database-MongoDB-47a248)](#)
+[![Real-time](https://img.shields.io/badge/Real--time-Socket.IO-010101)](#)
 
-## 🚀 Features
+## Features
 
-### 💕 Core Dating Features
+### Core Dating
+- **JWT Auth + Refresh Tokens** — 15-minute access tokens, 7-day httpOnly refresh cookies, silent token refresh
+- **Profile Management** — Full profiles with Cloudinary-backed photo uploads
+- **Preference-Based Matching** — Discover potential matches filtered by preferences
+- **Like / Dislike** — Swipe-style interactions with mutual match detection
+- **Block & Report** — Block users and report inappropriate behavior
 
-- **User Authentication & Authorization** - Secure JWT-based authentication
-- **Profile Management** - Complete user profiles with photos and preferences
-- **Smart Matching Algorithm** - Location and preference-based matching
-- **Like/Dislike System** - Swipe-based interaction like popular dating apps
-- **Match Notifications** - Real-time notifications when users match
-- **User Discovery** - Explore potential matches with advanced filtering
+### Real-Time Chat
+- **Socket.IO Messaging** — Instant messaging with delivered/read status
+- **Typing Indicators & Read Receipts** — Real-time presence and feedback
+- **Chat History** — Persistent messages and conversation management
 
-### 💬 Real-Time Chat System
+### UI & UX
+- **Responsive Design** — Mobile, tablet, and desktop
+- **shadcn/ui + Tailwind** — Modern, accessible components
+- **Framer Motion** — Smooth animations
+- **Dark/Light Themes** — User preference support
 
-- **Instant Messaging** - Real-time chat with Socket.IO
-- **Typing Indicators** - See when someone is typing
-- **Read Receipts** - Know when messages are read
-- **Message Status** - Sent, delivered, read tracking
-- **Chat History** - Persistent message storage
-- **Online Status** - Real-time user availability
+### Security & Operations
+- **Rate Limiting** — Auth routes protected against brute force
+- **CORS** — Configurable via `FRONTEND_URL`
+- **Input Validation** — express-validator on register/login
+- **Secure Cookies** — Refresh tokens in httpOnly cookies
 
-### 🎨 Modern UI/UX
+---
 
-- **Responsive Design** - Works on desktop, tablet, and mobile
-- **Material Design** - Clean, modern interface
-- **Dark/Light Themes** - User preference support
-- **Smooth Animations** - Engaging user experience
-- **Accessibility** - WCAG compliant design
+## Tech Stack
 
-### 🔒 Security & Performance
+| Layer      | Technologies                                           |
+|-----------|---------------------------------------------------------|
+| Frontend  | React 19, TypeScript, Vite 6, React Router 7, Tailwind CSS, shadcn/ui, Axios, Socket.IO Client, Framer Motion |
+| Backend   | Node.js (ESM), Express 5, MongoDB, Mongoose, JWT, bcrypt, Multer, Cloudinary, Socket.IO, Vitest |
+| DevOps    | ESLint, Vitest, Git                                    |
 
-- **JWT Authentication** - Secure token-based auth
-- **Input Validation** - Comprehensive data validation
-- **Error Handling** - Graceful error management
-- **Rate Limiting** - API protection
-- **Image Upload** - Secure file handling
-- **CORS Configuration** - Cross-origin security
+---
 
-## 🏗️ Architecture
-
-### Frontend (React + TypeScript)
-
-```
-frontend/
-├── src/
-│   ├── components/     # Reusable UI components
-│   ├── pages/         # Page components
-│   ├── context/       # React context providers
-│   ├── hooks/         # Custom React hooks
-│   ├── services/      # API service layer
-│   ├── types/         # TypeScript type definitions
-│   └── utils/         # Utility functions
-```
-
-### Backend (Node.js + Express)
+## Project Structure
 
 ```
-backend/
-├── controllers/       # Request handlers
-├── models/           # MongoDB schemas
-├── routes/           # API route definitions
-├── middleware/       # Custom middleware
-├── socket/           # Socket.IO real-time logic
-├── uploads/          # File upload storage
-└── tests/            # Test files
+ilike-web/
+├── backend/                 # Express API (port 5000)
+│   ├── controllers/         # user, match, chat, profile, blockReport
+│   ├── middleware/          # auth (JWT verification)
+│   ├── models/              # User, Profile, Match, Chat, Message, Block, Report
+│   ├── routes/              # userRoutes, matchRoutes, chatRoutes, profileRoutes
+│   ├── socket/              # socketServer.js (Socket.IO)
+│   └── utils/               # cloudinaryConfig, authUtils
+├── frontend/                # React SPA (port 3000)
+│   └── src/
+│       ├── components/      # Navbar, ProfileSetup, auth, ui
+│       ├── context/         # AuthProvider
+│       ├── pages/           # Home, Explore, Matches, Chat, Profile, Settings
+│       ├── services/        # api, authService, matchService, chatService
+│       └── routes/          # AppRoutes, AdminRoutes
+└── docs/                    # Architecture diagrams (Mermaid)
 ```
 
-## 🛠️ Tech Stack
+---
 
-### Frontend
-
-- **React 18** - UI library
-- **TypeScript** - Type safety
-- **Vite** - Build tool and dev server
-- **Tailwind CSS** - Utility-first CSS framework
-- **React Router** - Client-side routing
-- **Axios** - HTTP client
-- **Socket.IO Client** - Real-time communication
-
-### Backend
-
-- **Node.js** - Runtime environment
-- **Express.js** - Web framework
-- **MongoDB** - NoSQL database
-- **Mongoose** - MongoDB ODM
-- **Socket.IO** - Real-time bidirectional communication
-- **JWT** - Authentication tokens
-- **Multer** - File upload handling
-- **Jest** - Testing framework
-
-### DevOps & Tools
-
-- **Git** - Version control
-- **ESLint** - Code linting
-- **Prettier** - Code formatting
-- **Jest** - Testing
-- **Postman** - API testing
-
-## 📦 Installation & Setup
+## Quick Start
 
 ### Prerequisites
 
-- Node.js (v18 or higher)
-- MongoDB (v5 or higher)
-- Git
+- **Node.js** 18+
+- **MongoDB** 6+ (local or Atlas)
+- **Cloudinary** account (free tier)
 
-### 1. Clone the Repository
+### 1. Clone & Install
 
 ```bash
 git clone https://github.com/Pin3appl3ishan/ilike-web.git
 cd ilike-web
+
+# Backend
+cd backend && npm install && cd ..
+
+# Frontend
+cd frontend && npm install && cd ..
 ```
 
-### 2. Backend Setup
+### 2. Environment Variables
 
-```bash
-cd backend
-
-# Install dependencies
-npm install
-
-# Create .env file
-cp .env.example .env
-
-# Configure environment variables
-# Edit .env with your MongoDB URI, JWT secret, etc.
-
-# Start development server
-npm run dev
-```
-
-### 3. Frontend Setup
-
-```bash
-cd frontend
-
-# Install dependencies
-npm install
-
-# Create .env file
-cp .env.example .env
-
-# Configure environment variables
-# Edit .env with your backend API URL
-
-# Start development server
-npm run dev
-```
-
-### 4. Database Setup
-
-```bash
-# Ensure MongoDB is running
-mongod
-
-# The application will automatically create collections
-# when you first register a user
-```
-
-## 🔧 Environment Variables
-
-### Backend (.env)
+**Backend** — create `backend/.env`:
 
 ```env
-# Server Configuration
 PORT=5000
 NODE_ENV=development
 
-# Database
 MONGODB_URI=mongodb://localhost:27017/ilike
 
-# Authentication
-JWT_SECRET=your-super-secret-jwt-key
-JWT_EXPIRES_IN=7d
+JWT_SECRET=<generate-a-strong-secret>
+JWT_EXPIRES_IN=15m
+REFRESH_TOKEN_EXPIRES_IN=7d
 
-# File Upload
-UPLOAD_PATH=./uploads
-MAX_FILE_SIZE=5242880
+CLOUDINARY_CLOUD_NAME=<your-cloud-name>
+CLOUDINARY_API_KEY=<your-api-key>
+CLOUDINARY_API_SECRET=<your-api-secret>
 
-# CORS
 FRONTEND_URL=http://localhost:3000
 ```
 
-### Frontend (.env)
+**Frontend** — create `frontend/.env`:
 
 ```env
-# API Configuration
 VITE_API_BASE_URL=http://localhost:5000/api
-VITE_SOCKET_URL=http://localhost:5000
-
-# App Configuration
-VITE_APP_NAME=iLike
-VITE_APP_VERSION=1.0.0
 ```
 
-## 📚 API Documentation
-
-### Authentication Endpoints
-
-```http
-POST /api/users/register    # Register new user
-POST /api/users/login       # User login
-GET  /api/users/profile     # Get user profile
-PUT  /api/users/profile     # Update user profile
-POST /api/users/logout      # User logout
-```
-
-### Profile Endpoints
-
-```http
-GET  /api/profile           # Get user profile
-POST /api/profile           # Create profile
-PUT  /api/profile           # Update profile
-POST /api/profile/photo     # Upload profile photo
-```
-
-### Matching Endpoints
-
-```http
-GET  /api/matches/potential # Get potential matches
-POST /api/matches/like      # Like a user
-POST /api/matches/dislike   # Dislike a user
-GET  /api/matches/matches   # Get mutual matches
-GET  /api/matches/likes     # Get received likes
-GET  /api/matches/likes-sent # Get sent likes
-```
-
-### Chat Endpoints
-
-```http
-GET  /api/chats             # Get all chats
-POST /api/chats             # Create new chat
-GET  /api/chats/:chatId     # Get specific chat
-GET  /api/chats/:chatId/messages # Get chat messages
-POST /api/chats/:chatId/messages # Send message
-PUT  /api/chats/:chatId/read # Mark messages as read
-DELETE /api/chats/:chatId   # Delete chat
-```
-
-### Socket.IO Events
-
-```javascript
-// Client to Server
-socket.emit("join_chat", chatId);
-socket.emit("leave_chat", chatId);
-socket.emit("typing_start", { chatId });
-socket.emit("typing_stop", { chatId });
-socket.emit("send_message", { chatId, content, type });
-socket.emit("mark_read", { chatId });
-
-// Server to Client
-socket.on("new_message", messageData);
-socket.on("message_sent", messageData);
-socket.on("user_typing", { userId, chatId, isTyping });
-socket.on("messages_read", { chatId, readBy, timestamp });
-socket.on("chat_updated", chatData);
-```
-
-## 🧪 Testing
-
-### Backend Tests
+### 3. Run
 
 ```bash
-cd backend
+# Terminal 1 - Backend
+cd backend && npm run dev
 
-# Run all tests
-npm test
-
-# Run tests with coverage
-npm run test:coverage
-
-# Run tests in watch mode
-npm run test:watch
+# Terminal 2 - Frontend
+cd frontend && npm run dev
 ```
 
-### Frontend Tests
-
-```bash
-cd frontend
-
-# Run all tests
-npm test
-
-# Run tests with coverage
-npm run test:coverage
-
-# Run tests in watch mode
-npm run test:watch
-```
-
-## 🚀 Deployment
-
-### Backend Deployment (Heroku)
-
-```bash
-# Add Heroku remote
-heroku git:remote -a your-app-name
-
-# Set environment variables
-heroku config:set MONGODB_URI=your-mongodb-uri
-heroku config:set JWT_SECRET=your-jwt-secret
-
-# Deploy
-git push heroku main
-```
-
-### Frontend Deployment (Vercel)
-
-```bash
-# Install Vercel CLI
-npm i -g vercel
-
-# Deploy
-vercel
-```
-
-## 📱 Mobile App Integration
-
-This web platform is designed to work seamlessly with the companion Flutter mobile app:
-
-- **Shared Backend** - Same API endpoints and Socket.IO server
-- **Real-time Sync** - Messages and matches sync across platforms
-- **Unified Authentication** - Single sign-on across web and mobile
-- **Consistent UX** - Similar user experience on all platforms
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-### Development Guidelines
-
-- Follow TypeScript best practices
-- Write comprehensive tests
-- Use conventional commit messages
-- Update documentation for new features
-- Ensure responsive design
-- Test on multiple browsers
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 👥 Team
-
-- **Frontend Developer** - React & TypeScript expertise
-- **Backend Developer** - Node.js & MongoDB expertise
-- **UI/UX Designer** - Modern, accessible design
-- **DevOps Engineer** - Deployment & infrastructure
-
-## 📞 Support
-
-- **Email**: support@ilike-app.com
-- **Documentation**: [docs.ilike-app.com](https://docs.ilike-app.com)
-- **Issues**: [GitHub Issues](https://github.com/yourusername/ilike-web/issues)
-
-## 🎯 Roadmap
-
-### Phase 1 (Current)
-
-- ✅ User authentication
-- ✅ Profile management
-- ✅ Basic matching
-- ✅ Real-time chat
-- ✅ Web frontend
-
-### Phase 2 (Next)
-
-- 🔄 Advanced matching algorithm
-- 🔄 Video calling
-- 🔄 Push notifications
-- 🔄 Analytics dashboard
-
-### Phase 3 (Future)
-
-- 📋 AI-powered recommendations
-- 📋 Group events
-- 📋 Premium features
-- 📋 Multi-language support
+- Frontend: [http://localhost:3000](http://localhost:3000)
+- Backend: [http://localhost:5000](http://localhost:5000)
 
 ---
 
-**Built with ❤️ for modern dating experiences**
+## API Reference
+
+### Auth
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| POST | `/api/users/register` | No | Register |
+| POST | `/api/users/login` | No | Login |
+| POST | `/api/users/refresh` | Cookie | Refresh access token |
+| POST | `/api/users/logout` | Yes | Logout |
+| GET | `/api/users/me` | Yes | Current user |
+| GET | `/api/users` | Yes | List users |
+
+### Block & Report
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| POST | `/api/users/block/:id` | Yes | Block user |
+| DELETE | `/api/users/block/:id` | Yes | Unblock user |
+| POST | `/api/users/report/:id` | Yes | Report user |
+
+### Matches
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| GET | `/api/matches/potential` | Yes | Potential matches |
+| POST | `/api/matches/like/:userId` | Yes | Like user |
+| DELETE | `/api/matches/like/:userId` | Yes | Dislike user |
+| GET | `/api/matches` | Yes | Mutual matches |
+| GET | `/api/matches/likes` | Yes | Who liked me |
+| GET | `/api/matches/likes-sent` | Yes | Likes I sent |
+
+### Profile
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| GET | `/api/profile/me` | Yes | Own profile |
+| POST | `/api/profile/setup` | Yes | Create/update profile |
+| PUT | `/api/profile/update` | Yes | Update profile |
+| PUT | `/api/profile/picture` | Yes | Update profile picture |
+| POST | `/api/profile/upload` | Yes | Upload photo |
+
+### Chat
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| GET | `/api/chats` | Yes | All chats |
+| POST | `/api/chats` | Yes | Create chat |
+| GET | `/api/chats/:chatId` | Yes | Get chat |
+| GET | `/api/chats/:chatId/messages` | Yes | Get messages |
+| POST | `/api/chats/:chatId/messages` | Yes | Send message |
+| PUT | `/api/chats/:chatId/read` | Yes | Mark as read |
+| DELETE | `/api/chats/:chatId` | Yes | Soft delete chat |
+
+### Socket.IO Events
+| Event (C→S) | Payload | Description |
+|-------------|---------|-------------|
+| `join_chat` | `chatId` | Join chat room |
+| `leave_chat` | `chatId` | Leave chat room |
+| `typing_start` | `{ chatId }` | Start typing |
+| `typing_stop` | `{ chatId }` | Stop typing |
+| `send_message` | `{ chatId, content, type }` | Send message |
+| `mark_read` | `{ chatId }` | Mark messages read |
+
+| Event (S→C) | Payload | Description |
+|-------------|---------|-------------|
+| `new_message` | message | New message received |
+| `message_sent` | message | Message confirmed |
+| `user_typing` | `{ userId, chatId, isTyping }` | Typing indicator |
+| `messages_read` | `{ chatId, readBy, timestamp }` | Read receipts |
+
+---
+
+## Testing
+
+```bash
+# Backend
+cd backend && npm test
+
+# Frontend
+cd frontend && npm test
+```
+
+Backend uses **Vitest**; frontend uses **Vitest** + **Testing Library**.
+
+---
+
+## Deployment
+
+### Backend (Render, Railway, or Heroku)
+
+1. Set environment variables:
+   - `MONGODB_URI` (e.g. MongoDB Atlas)
+   - `JWT_SECRET`, `REFRESH_TOKEN_EXPIRES_IN`
+   - `CLOUDINARY_*`
+   - `FRONTEND_URL` (production frontend URL)
+2. Ensure `NODE_ENV=production`.
+3. Use `npm run start` or `node server.js`.
+
+### Frontend (Vercel, Netlify)
+
+1. Set `VITE_API_BASE_URL` to your production backend API URL.
+2. Build: `npm run build`.
+3. Serve the `dist/` folder.
+
+### Production Checklist
+
+- [ ] Use MongoDB Atlas or managed MongoDB
+- [ ] Set strong `JWT_SECRET` and rotate periodically
+- [ ] Set `FRONTEND_URL` to production origin
+- [ ] Use HTTPS in production
+- [ ] Configure Cloudinary usage limits
+- [ ] Add rate limiting beyond auth (optional)
+
+---
+
+## Mobile Integration
+
+This backend is shared with a companion **Flutter mobile app**. The API, Socket.IO events, and auth flow are designed for web and mobile clients.
+
+---
+
+## Contributing
+
+1. Fork the repo
+2. Create a branch (`git checkout -b feature/my-feature`)
+3. Commit (`git commit -m 'feat: add my feature'`)
+4. Push (`git push origin feature/my-feature`)
+5. Open a Pull Request
+
+Use conventional commits (`feat:`, `fix:`, `chore:`).
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE) for details.
