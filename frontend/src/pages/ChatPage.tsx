@@ -148,9 +148,12 @@ const ChatPage: React.FC = () => {
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportReason, setReportReason] = useState<ReportReason>("inappropriate");
   const [reportDescription, setReportDescription] = useState("");
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
 
@@ -296,11 +299,19 @@ const ChatPage: React.FC = () => {
 
     const loadMessages = async () => {
       try {
-        const msgs = await chatService.getMessages(selectedChat.chatId);
-        if (!ignore) setMessages(msgs);
+        const { messages: msgs, hasMore } = await chatService.getMessages(
+          selectedChat.chatId
+        );
+        if (!ignore) {
+          setMessages(msgs);
+          setHasMoreMessages(hasMore);
+        }
       } catch (error) {
         console.error("Failed to load messages:", error);
-        if (!ignore) setMessages([]);
+        if (!ignore) {
+          setMessages([]);
+          setHasMoreMessages(false);
+        }
       }
     };
 
@@ -480,6 +491,33 @@ const ChatPage: React.FC = () => {
     }
   };
 
+  const loadOlderMessages = useCallback(async () => {
+    if (!selectedChat || !hasMoreMessages || loadingOlder || messages.length === 0)
+      return;
+    setLoadingOlder(true);
+    const container = messagesContainerRef.current;
+    const prevScrollHeight = container?.scrollHeight || 0;
+    try {
+      const oldest = messages[0].timestamp;
+      const { messages: older, hasMore } = await chatService.getMessages(
+        selectedChat.chatId,
+        oldest
+      );
+      setMessages((prev) => [...older, ...prev]);
+      setHasMoreMessages(hasMore);
+      // Preserve scroll position after prepending
+      requestAnimationFrame(() => {
+        if (container) {
+          container.scrollTop = container.scrollHeight - prevScrollHeight;
+        }
+      });
+    } catch (error) {
+      console.error("Failed to load older messages:", error);
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [selectedChat, hasMoreMessages, loadingOlder, messages]);
+
   const selectConversation = (chat: ChatSummary) => {
     setSelectedChat(chat);
     navigate(`/chat/${chat.otherUserId}`);
@@ -640,7 +678,21 @@ const ChatPage: React.FC = () => {
                   </div>
 
                   {/* Messages */}
-                  <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+                  <div
+                    ref={messagesContainerRef}
+                    className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50"
+                  >
+                    {hasMoreMessages && (
+                      <div className="text-center py-2">
+                        <button
+                          onClick={loadOlderMessages}
+                          disabled={loadingOlder}
+                          className="text-sm text-pink-500 hover:text-pink-600 font-medium disabled:opacity-50"
+                        >
+                          {loadingOlder ? "Loading..." : "Load older messages"}
+                        </button>
+                      </div>
+                    )}
                     {messages.length === 0 ? (
                       <div className="flex items-center justify-center h-full text-gray-400">
                         <p>No messages yet. Say hello!</p>

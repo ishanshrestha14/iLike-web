@@ -73,10 +73,24 @@ export const getMessages = async (req, res) => {
       return res.status(404).json({ message: "Chat not found" });
     }
 
-    // Get messages for this chat
-    const messages = await Message.find({ chatId })
-      .sort({ timestamp: 1 })
+    // Pagination: load newest messages first, optionally before a cursor timestamp
+    const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+    const filter = { chatId };
+    if (req.query.before) {
+      filter.timestamp = { $lt: new Date(req.query.before) };
+    }
+
+    // Fetch limit+1 to know if there are older messages
+    const messages = await Message.find(filter)
+      .sort({ timestamp: -1 })
+      .limit(limit + 1)
       .populate("senderId", "name");
+
+    const hasMore = messages.length > limit;
+    if (hasMore) messages.pop();
+
+    // Reverse back to chronological order
+    messages.reverse();
 
     // Format messages for frontend
     const formattedMessages = messages.map((message) => ({
@@ -93,7 +107,7 @@ export const getMessages = async (req, res) => {
     // Mark messages as read for the current user
     await markMessagesAsReadHelper(chatId, userId);
 
-    res.json(formattedMessages);
+    res.json({ messages: formattedMessages, hasMore });
   } catch (error) {
     console.error("Error getting messages:", error);
     res.status(500).json({ message: "Failed to get messages" });

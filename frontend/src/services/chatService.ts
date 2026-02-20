@@ -28,8 +28,19 @@ export const getChats = async (): Promise<ChatSummary[]> => {
   return data;
 };
 
-export const getMessages = async (chatId: string): Promise<ChatMessage[]> => {
-  const { data } = await api.get(`/chats/${chatId}/messages`);
+export interface MessagesResponse {
+  messages: ChatMessage[];
+  hasMore: boolean;
+}
+
+export const getMessages = async (
+  chatId: string,
+  before?: string,
+  limit = 50
+): Promise<MessagesResponse> => {
+  const params: Record<string, string | number> = { limit };
+  if (before) params.before = before;
+  const { data } = await api.get(`/chats/${chatId}/messages`, { params });
   return data;
 };
 
