@@ -2,6 +2,7 @@ import Match from "../models/Match.js";
 import Profile from "../models/Profile.js";
 import User from "../models/user.js";
 import Block from "../models/Block.js";
+import { isValidObjectId } from "../utils/validate.js";
 
 // @desc    Get potential matches for a user
 // @route   GET /api/matches/potential
@@ -99,6 +100,10 @@ export const likeUser = async (req, res) => {
     const likerId = req.userId;
     const likedId = req.params.userId;
 
+    if (!isValidObjectId(likedId)) {
+      return res.status(400).json({ success: false, message: "Invalid user ID" });
+    }
+
     // Validate that the user exists and has completed profile
     const likedProfile = await Profile.findOne({
       userId: likedId,
@@ -174,6 +179,10 @@ export const dislikeUser = async (req, res) => {
   try {
     const likerId = req.userId;
     const likedId = req.params.userId;
+
+    if (!isValidObjectId(likedId)) {
+      return res.status(400).json({ success: false, message: "Invalid user ID" });
+    }
 
     // Remove the like
     const deletedLike = await Match.findOneAndDelete({

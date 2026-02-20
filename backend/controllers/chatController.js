@@ -3,6 +3,7 @@ import Message from "../models/Message.js";
 import User from "../models/user.js";
 import Profile from "../models/Profile.js";
 import Match from "../models/Match.js";
+import { isValidObjectId } from "../utils/validate.js";
 
 // Get all chats for the current user
 export const getChats = async (req, res) => {
@@ -66,6 +67,10 @@ export const getMessages = async (req, res) => {
     const { chatId } = req.params;
     const userId = req.userId;
 
+    if (!isValidObjectId(chatId)) {
+      return res.status(400).json({ message: "Invalid chat ID" });
+    }
+
     // Verify the user is a participant in this chat
     const chat = await Chat.findOne({ _id: chatId, participants: userId });
     if (!chat) {
@@ -118,6 +123,10 @@ export const sendMessage = async (req, res) => {
     const { chatId } = req.params;
     const { content, type = "text" } = req.body;
     const userId = req.userId;
+
+    if (!isValidObjectId(chatId)) {
+      return res.status(400).json({ message: "Invalid chat ID" });
+    }
 
     if (!content || content.trim().length === 0) {
       return res.status(400).json({ message: "Message content is required" });
@@ -208,6 +217,10 @@ export const markMessagesAsRead = async (req, res) => {
     const { chatId } = req.params;
     const userId = req.userId;
 
+    if (!isValidObjectId(chatId)) {
+      return res.status(400).json({ message: "Invalid chat ID" });
+    }
+
     const chat = await Chat.findOne({ _id: chatId, participants: userId });
     if (!chat) {
       return res.status(404).json({ message: "Chat not found" });
@@ -229,6 +242,10 @@ export const createChat = async (req, res) => {
 
     if (!otherUserId) {
       return res.status(400).json({ message: "Other user ID is required" });
+    }
+
+    if (!isValidObjectId(otherUserId)) {
+      return res.status(400).json({ message: "Invalid user ID" });
     }
 
     // Check if other user exists
@@ -308,6 +325,10 @@ export const getChatById = async (req, res) => {
     const { chatId } = req.params;
     const userId = req.userId;
 
+    if (!isValidObjectId(chatId)) {
+      return res.status(400).json({ message: "Invalid chat ID" });
+    }
+
     // Verify the user is a participant in this chat
     const chat = await Chat.findOne({ _id: chatId, participants: userId }).populate(
       "participants",
@@ -353,6 +374,10 @@ export const deleteChat = async (req, res) => {
   try {
     const { chatId } = req.params;
     const userId = req.userId;
+
+    if (!isValidObjectId(chatId)) {
+      return res.status(400).json({ message: "Invalid chat ID" });
+    }
 
     // Verify the user is a participant in this chat
     const chat = await Chat.findOne({ _id: chatId, participants: userId });
