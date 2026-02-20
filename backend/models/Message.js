@@ -10,9 +10,9 @@ const messageSchema = new mongoose.Schema(
     },
     // Reference to the chat this message belongs to
     chatId: {
-      type: String,
-      required: true,
+      type: mongoose.Schema.Types.ObjectId,
       ref: "Chat",
+      required: true,
     },
     // ID of the user who sent the message
     senderId: {
@@ -65,7 +65,7 @@ const messageSchema = new mongoose.Schema(
 // Generate messageId if not provided
 messageSchema.pre("save", function (next) {
   if (!this.messageId) {
-    this.messageId = `${this.chatId}_${Date.now()}_${Math.random()
+    this.messageId = `${this.chatId.toString()}_${Date.now()}_${Math.random()
       .toString(36)
       .substr(2, 9)}`;
   }

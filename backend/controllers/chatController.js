@@ -31,7 +31,7 @@ export const getChats = async (req, res) => {
         const profile = await Profile.findOne({ userId: otherParticipant._id });
 
         return {
-          chatId: chat.chatId,
+          chatId: chat._id,
           otherUserId: otherParticipant._id,
           otherUserName: otherParticipant.name,
           otherUserProfilePicture: profile?.profilePictureUrl || null,
@@ -66,7 +66,7 @@ export const getMessages = async (req, res) => {
     const userId = req.userId;
 
     // Verify the user is a participant in this chat
-    const chat = await Chat.findOne({ chatId, participants: userId });
+    const chat = await Chat.findOne({ _id: chatId, participants: userId });
     if (!chat) {
       return res.status(404).json({ message: "Chat not found" });
     }
@@ -110,7 +110,7 @@ export const sendMessage = async (req, res) => {
     }
 
     // Verify the user is a participant in this chat
-    const chat = await Chat.findOne({ chatId, participants: userId });
+    const chat = await Chat.findOne({ _id: chatId, participants: userId });
     if (!chat) {
       return res.status(404).json({ message: "Chat not found" });
     }
@@ -165,7 +165,7 @@ export const sendMessage = async (req, res) => {
 
 // Shared helper: mark messages as read for a user in a chat
 export const markMessagesAsReadHelper = async (chatId, userId) => {
-  const chat = await Chat.findOne({ chatId, participants: userId });
+  const chat = await Chat.findOne({ _id: chatId, participants: userId });
   if (!chat) return;
 
   await Message.updateMany(
@@ -195,7 +195,7 @@ export const markMessagesAsRead = async (req, res) => {
     const { chatId } = req.params;
     const userId = req.userId;
 
-    const chat = await Chat.findOne({ chatId, participants: userId });
+    const chat = await Chat.findOne({ _id: chatId, participants: userId });
     if (!chat) {
       return res.status(404).json({ message: "Chat not found" });
     }
@@ -247,7 +247,7 @@ export const createChat = async (req, res) => {
       // Return the existing chat in the same format as new chat
       const profile = await Profile.findOne({ userId: otherUserId });
       return res.status(200).json({
-        chatId: existingChat.chatId,
+        chatId: existingChat._id,
         otherUserId: otherUser._id,
         otherUserName: otherUser.name,
         otherUserProfilePicture: profile?.profilePictureUrl || null,
@@ -273,7 +273,7 @@ export const createChat = async (req, res) => {
     const profile = await Profile.findOne({ userId: otherUserId });
 
     const chatResponse = {
-      chatId: chat.chatId,
+      chatId: chat._id,
       otherUserId: otherUser._id,
       otherUserName: otherUser.name,
       otherUserProfilePicture: profile?.profilePictureUrl || null,
@@ -298,7 +298,7 @@ export const getChatById = async (req, res) => {
     const userId = req.userId;
 
     // Verify the user is a participant in this chat
-    const chat = await Chat.findOne({ chatId, participants: userId }).populate(
+    const chat = await Chat.findOne({ _id: chatId, participants: userId }).populate(
       "participants",
       "name"
     );
@@ -320,7 +320,7 @@ export const getChatById = async (req, res) => {
     const profile = await Profile.findOne({ userId: otherParticipant._id });
 
     const chatResponse = {
-      chatId: chat.chatId,
+      chatId: chat._id,
       otherUserId: otherParticipant._id,
       otherUserName: otherParticipant.name,
       otherUserProfilePicture: profile?.profilePictureUrl || null,
@@ -345,7 +345,7 @@ export const deleteChat = async (req, res) => {
     const userId = req.userId;
 
     // Verify the user is a participant in this chat
-    const chat = await Chat.findOne({ chatId, participants: userId });
+    const chat = await Chat.findOne({ _id: chatId, participants: userId });
     if (!chat) {
       return res.status(404).json({ message: "Chat not found" });
     }

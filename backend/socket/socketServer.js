@@ -44,7 +44,7 @@ class SocketServer {
       socket.on("join_chat", async (chatId) => {
         try {
           const chat = await Chat.findOne({
-            chatId,
+            _id: chatId,
             participants: socket.userId,
           });
 
@@ -89,7 +89,7 @@ class SocketServer {
 
           // Verify user is participant in chat
           const chat = await Chat.findOne({
-            chatId,
+            _id: chatId,
             participants: socket.userId,
           });
 
@@ -188,7 +188,7 @@ class SocketServer {
 
           // Update chat unread count
           const chat = await Chat.findOne({
-            chatId,
+            _id: chatId,
             participants: socket.userId,
           });
           if (chat) {
