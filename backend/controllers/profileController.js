@@ -1,6 +1,7 @@
 import Profile from "../models/Profile.js";
 import User from "../models/user.js";
 import { generateAccessToken } from "./userController.js";
+import { isValidPhotoUrl } from "../utils/validate.js";
 
 // @desc    Get current user's profile
 // @route   GET /api/profile/me
@@ -94,8 +95,11 @@ export const setupProfile = async (req, res) => {
       uploadedPhotos.push(...req.files.map((file) => file.path));
     }
 
+    // Filter invalid URLs from user-provided photos
+    const validatedUrls = photoUrlsArray.filter(isValidPhotoUrl);
+
     // Combine existing and uploaded photos
-    const photoUrls = [...photoUrlsArray, ...uploadedPhotos];
+    const photoUrls = [...validatedUrls, ...uploadedPhotos];
 
     if (photoUrls.length === 0) {
       return res.status(400).json({
@@ -207,6 +211,11 @@ export const updateProfile = async (req, res) => {
         }
       }
     });
+
+    // Filter invalid photo URLs if provided
+    if (Array.isArray(updates.photoUrls)) {
+      updates.photoUrls = updates.photoUrls.filter(isValidPhotoUrl);
+    }
 
     // Handle file upload if exists
     if (req.file) {

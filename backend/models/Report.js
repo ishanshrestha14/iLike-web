@@ -31,7 +31,7 @@ const reportSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-reportSchema.index({ reporterId: 1, reportedId: 1 });
+reportSchema.index({ reporterId: 1, reportedId: 1 }, { unique: true });
 reportSchema.index({ status: 1 });
 
 const Report = mongoose.model("Report", reportSchema);
