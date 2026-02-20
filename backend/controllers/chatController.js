@@ -57,7 +57,7 @@ export const getChats = async (req, res) => {
 
     res.json(validChats);
   } catch (error) {
-    res.status(500).json({ message: "Failed to get chats" });
+    res.status(500).json({ success: false, message: "Failed to get chats" });
   }
 };
 
@@ -68,13 +68,13 @@ export const getMessages = async (req, res) => {
     const userId = req.userId;
 
     if (!isValidObjectId(chatId)) {
-      return res.status(400).json({ message: "Invalid chat ID" });
+      return res.status(400).json({ success: false, message: "Invalid chat ID" });
     }
 
     // Verify the user is a participant in this chat
     const chat = await Chat.findOne({ _id: chatId, participants: userId });
     if (!chat) {
-      return res.status(404).json({ message: "Chat not found" });
+      return res.status(404).json({ success: false, message: "Chat not found" });
     }
 
     // Pagination: load newest messages first, optionally before a cursor timestamp
@@ -113,7 +113,7 @@ export const getMessages = async (req, res) => {
 
     res.json({ messages: formattedMessages, hasMore });
   } catch (error) {
-    res.status(500).json({ message: "Failed to get messages" });
+    res.status(500).json({ success: false, message: "Failed to get messages" });
   }
 };
 
@@ -125,17 +125,17 @@ export const sendMessage = async (req, res) => {
     const userId = req.userId;
 
     if (!isValidObjectId(chatId)) {
-      return res.status(400).json({ message: "Invalid chat ID" });
+      return res.status(400).json({ success: false, message: "Invalid chat ID" });
     }
 
     if (!content || content.trim().length === 0) {
-      return res.status(400).json({ message: "Message content is required" });
+      return res.status(400).json({ success: false, message: "Message content is required" });
     }
 
     // Verify the user is a participant in this chat
     const chat = await Chat.findOne({ _id: chatId, participants: userId });
     if (!chat) {
-      return res.status(404).json({ message: "Chat not found" });
+      return res.status(404).json({ success: false, message: "Chat not found" });
     }
 
     // Create the message
@@ -181,7 +181,7 @@ export const sendMessage = async (req, res) => {
 
     res.status(201).json(formattedMessage);
   } catch (error) {
-    res.status(500).json({ message: "Failed to send message" });
+    res.status(500).json({ success: false, message: "Failed to send message" });
   }
 };
 
@@ -218,19 +218,19 @@ export const markMessagesAsRead = async (req, res) => {
     const userId = req.userId;
 
     if (!isValidObjectId(chatId)) {
-      return res.status(400).json({ message: "Invalid chat ID" });
+      return res.status(400).json({ success: false, message: "Invalid chat ID" });
     }
 
     const chat = await Chat.findOne({ _id: chatId, participants: userId });
     if (!chat) {
-      return res.status(404).json({ message: "Chat not found" });
+      return res.status(404).json({ success: false, message: "Chat not found" });
     }
 
     await markMessagesAsReadHelper(chatId, userId);
 
     res.json({ message: "Messages marked as read" });
   } catch (error) {
-    res.status(500).json({ message: "Failed to mark messages as read" });
+    res.status(500).json({ success: false, message: "Failed to mark messages as read" });
   }
 };
 
@@ -241,17 +241,17 @@ export const createChat = async (req, res) => {
     const userId = req.userId;
 
     if (!otherUserId) {
-      return res.status(400).json({ message: "Other user ID is required" });
+      return res.status(400).json({ success: false, message: "Other user ID is required" });
     }
 
     if (!isValidObjectId(otherUserId)) {
-      return res.status(400).json({ message: "Invalid user ID" });
+      return res.status(400).json({ success: false, message: "Invalid user ID" });
     }
 
     // Check if other user exists
     const otherUser = await User.findById(otherUserId);
     if (!otherUser) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ success: false, message: "User not found" });
     }
 
     // Check if users are matched (isMatch: true in either direction)
@@ -264,7 +264,7 @@ export const createChat = async (req, res) => {
     if (!match) {
       return res
         .status(403)
-        .json({ message: "You must be matched to start a chat." });
+        .json({ success: false, message: "You must be matched to start a chat." });
     }
 
     // Check if chat already exists
@@ -315,7 +315,7 @@ export const createChat = async (req, res) => {
 
     res.status(201).json(chatResponse);
   } catch (error) {
-    res.status(500).json({ message: "Failed to create chat" });
+    res.status(500).json({ success: false, message: "Failed to create chat" });
   }
 };
 
@@ -326,7 +326,7 @@ export const getChatById = async (req, res) => {
     const userId = req.userId;
 
     if (!isValidObjectId(chatId)) {
-      return res.status(400).json({ message: "Invalid chat ID" });
+      return res.status(400).json({ success: false, message: "Invalid chat ID" });
     }
 
     // Verify the user is a participant in this chat
@@ -336,7 +336,7 @@ export const getChatById = async (req, res) => {
     );
 
     if (!chat) {
-      return res.status(404).json({ message: "Chat not found" });
+      return res.status(404).json({ success: false, message: "Chat not found" });
     }
 
     // Find the other participant
@@ -345,7 +345,7 @@ export const getChatById = async (req, res) => {
     );
 
     if (!otherParticipant) {
-      return res.status(404).json({ message: "Other participant not found" });
+      return res.status(404).json({ success: false, message: "Other participant not found" });
     }
 
     // Get the other user's profile
@@ -365,7 +365,7 @@ export const getChatById = async (req, res) => {
 
     res.json(chatResponse);
   } catch (error) {
-    res.status(500).json({ message: "Failed to get chat" });
+    res.status(500).json({ success: false, message: "Failed to get chat" });
   }
 };
 
@@ -376,13 +376,13 @@ export const deleteChat = async (req, res) => {
     const userId = req.userId;
 
     if (!isValidObjectId(chatId)) {
-      return res.status(400).json({ message: "Invalid chat ID" });
+      return res.status(400).json({ success: false, message: "Invalid chat ID" });
     }
 
     // Verify the user is a participant in this chat
     const chat = await Chat.findOne({ _id: chatId, participants: userId });
     if (!chat) {
-      return res.status(404).json({ message: "Chat not found" });
+      return res.status(404).json({ success: false, message: "Chat not found" });
     }
 
     // Soft delete by setting isActive to false
@@ -391,6 +391,6 @@ export const deleteChat = async (req, res) => {
 
     res.json({ message: "Chat deleted successfully" });
   } catch (error) {
-    res.status(500).json({ message: "Failed to delete chat" });
+    res.status(500).json({ success: false, message: "Failed to delete chat" });
   }
 };

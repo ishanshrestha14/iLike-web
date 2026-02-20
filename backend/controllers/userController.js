@@ -21,6 +21,7 @@ export const generateAccessToken = (user) => {
 /** Generate an opaque refresh token and persist it on the user doc */
 export const generateRefreshToken = async (user) => {
   const token = crypto.randomBytes(40).toString("hex");
+  user.previousRefreshToken = user.refreshToken;
   user.refreshToken = token;
   await user.save();
   return token;
@@ -86,7 +87,7 @@ export const register = async (req, res) => {
       message: "User registered successfully",
     });
   } catch (error) {
-    res.status(500).json({ error: "Error registering user" });
+    res.status(500).json({ success: false, message: "Error registering user" });
   }
 };
 
@@ -162,11 +163,11 @@ export const getCurrentUser = async (req, res) => {
   try {
     const user = await User.findById(req.userId).select("-password");
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ success: false, message: "User not found" });
     }
-    res.status(200).json(user);
+    res.status(200).json({ success: true, data: user });
   } catch (error) {
-    res.status(500).json({ error: "Error fetching current user profile" });
+    res.status(500).json({ success: false, message: "Error fetching current user profile" });
   }
 };
 
@@ -179,12 +180,12 @@ export const getProfile = async (req, res) => {
     const user = await User.findById(targetId).select("-password"); // exclude password from the response
 
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ success: false, message: "User not found" });
     }
 
     res.status(200).json(user);
   } catch (error) {
-    res.status(500).json({ error: "Error fetching user profile" });
+    res.status(500).json({ success: false, message: "Error fetching user profile" });
   }
 };
 
@@ -194,7 +195,7 @@ export const getProfile = async (req, res) => {
 export const updateProfile = async (req, res) => {
   try {
     if (req.userId !== req.params.id) {
-      return res.status(403).json({ message: "Not authorized to update this profile" });
+      return res.status(403).json({ success: false, message: "Not authorized to update this profile" });
     }
 
     const updates = req.body;
@@ -206,11 +207,11 @@ export const updateProfile = async (req, res) => {
       new: true,
     }).select("-password");
     if (!updatedUser)
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ success: false, message: "User not found" });
 
     res.status(200).json(updatedUser);
   } catch (error) {
-    res.status(500).json({ error: "Error updating user profile" });
+    res.status(500).json({ success: false, message: "Error updating user profile" });
   }
 };
 
@@ -225,7 +226,7 @@ export const getAllUsers = async (req, res) => {
     ); // exclude the current user
     res.status(200).json(users);
   } catch (error) {
-    res.status(500).json({ error: "Error fetching users" });
+    res.status(500).json({ success: false, message: "Error fetching users" });
   }
 };
 
@@ -236,18 +237,30 @@ export const refreshAccessToken = async (req, res) => {
   try {
     const { refreshToken } = req.cookies;
     if (!refreshToken) {
-      return res.status(401).json({ message: "No refresh token" });
+      return res.status(401).json({ success: false, message: "No refresh token" });
     }
 
     const user = await User.findOne({ refreshToken });
+
     if (!user) {
-      return res.status(401).json({ message: "Invalid refresh token" });
+      // Reuse detection: if this token was already rotated, it's a replay attack
+      const compromised = await User.findOne({ previousRefreshToken: refreshToken });
+      if (compromised) {
+        // Invalidate all tokens for this user to force re-login
+        compromised.refreshToken = null;
+        compromised.previousRefreshToken = null;
+        await compromised.save();
+        res.clearCookie("refreshToken", { path: "/" });
+        return res.status(401).json({ success: false, message: "Token reuse detected. Please log in again." });
+      }
+
+      return res.status(401).json({ success: false, message: "Invalid refresh token" });
     }
 
     // Issue new access token
     const token = generateAccessToken(user);
 
-    // Rotate refresh token
+    // Rotate refresh token (stores old token as previousRefreshToken)
     const newRefreshToken = await generateRefreshToken(user);
     res.cookie("refreshToken", newRefreshToken, {
       httpOnly: true,
@@ -259,7 +272,7 @@ export const refreshAccessToken = async (req, res) => {
 
     res.json({ success: true, token });
   } catch (error) {
-    res.status(500).json({ message: "Failed to refresh token" });
+    res.status(500).json({ success: false, message: "Failed to refresh token" });
   }
 };
 
@@ -268,16 +281,19 @@ export const refreshAccessToken = async (req, res) => {
 // @access  Private
 export const logoutUser = async (req, res) => {
   try {
-    // Clear refresh token from DB
+    // Clear both current and previous refresh tokens from DB
     const { refreshToken } = req.cookies;
     if (refreshToken) {
-      await User.findOneAndUpdate({ refreshToken }, { refreshToken: null });
+      await User.findOneAndUpdate(
+        { refreshToken },
+        { refreshToken: null, previousRefreshToken: null }
+      );
     }
 
     res.clearCookie("refreshToken", { path: "/" });
     res.json({ success: true, message: "Logged out" });
   } catch (error) {
-    res.status(500).json({ message: "Failed to logout" });
+    res.status(500).json({ success: false, message: "Failed to logout" });
   }
 };
 
