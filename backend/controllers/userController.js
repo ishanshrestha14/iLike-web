@@ -234,7 +234,7 @@ export const updateProfile = async (req, res) => {
 // @access  Private
 export const getAllUsers = async (req, res) => {
   try {
-    const currentUserId = req.user?.id; // from the verifyToken
+    const currentUserId = req.userId; // from the verifyToken
     const users = await User.find({ _id: { $ne: currentUserId } }).select(
       "-password"
     ); // exclude the current user
