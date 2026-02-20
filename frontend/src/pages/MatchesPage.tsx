@@ -1,119 +1,35 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import MainLayout from "@/layouts/MainLayout";
 import { Heart, MessageCircle, MapPin } from "lucide-react";
-
-// Import images from assets
-import image1 from "@/assets/1.jpg";
-import image2 from "@/assets/2.jpg";
-import image3 from "@/assets/3.jpg";
-import image4 from "@/assets/4.jpg";
-import image5 from "@/assets/5.jpg";
-import image6 from "@/assets/6.jpg";
-
-interface Match {
-  id: string;
-  name: string;
-  age: number;
-  bio: string;
-  distance: string;
-  interests: string[];
-  photos: string[];
-  matchedAt: string;
-  lastMessage?: string;
-  unreadCount?: number;
-}
+import { getMatches } from "@/services/matchService";
+import type { MatchResult } from "@/services/matchService";
 
 const MatchesPage: React.FC = () => {
-  const [matches, setMatches] = useState<Match[]>([]);
+  const navigate = useNavigate();
+  const [matches, setMatches] = useState<MatchResult[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedMatch, setSelectedMatch] = useState<MatchResult | null>(null);
 
-  // Load matches from API
-  useEffect(() => {
-    const loadMatches = async () => {
-      try {
-        setLoading(true);
-
-        // For demo, always use mock data
-        console.log("Using mock data for matches");
-        throw new Error("Using mock data");
-
-        // Uncomment below when backend is ready
-        // const matchesData = await getMatches();
-        // setMatches(matchesData);
-      } catch (error) {
-        console.error("Error loading matches:", error);
-        // Fallback to mock data if API fails
-        const mockMatches: Match[] = [
-          {
-            id: "1",
-            name: "Sarah",
-            age: 24,
-            bio: "Love hiking and coffee ☕️ Adventure seeker who enjoys exploring new places and trying different cuisines.",
-            distance: "2 km away",
-            interests: ["Hiking", "Coffee", "Photography", "Travel"],
-            photos: [image1, image2, image3],
-            matchedAt: "2024-01-15T10:30:00Z",
-            lastMessage: "Hey! I loved your hiking photos! 🏔️",
-            unreadCount: 2,
-          },
-          {
-            id: "2",
-            name: "Emma",
-            age: 26,
-            bio: "Adventure seeker and foodie 🍕 Always looking for the next exciting experience and delicious meal.",
-            distance: "5 km away",
-            interests: ["Travel", "Food", "Yoga", "Cooking"],
-            photos: [image2, image3, image4],
-            matchedAt: "2024-01-14T15:45:00Z",
-            lastMessage: "Want to grab coffee sometime? ☕",
-            unreadCount: 0,
-          },
-          {
-            id: "3",
-            name: "Jessica",
-            age: 23,
-            bio: "Artist and nature lover 🌿 Creative soul who finds inspiration in the beauty of the natural world.",
-            distance: "3 km away",
-            interests: ["Art", "Nature", "Music", "Painting"],
-            photos: [image3, image4, image5],
-            matchedAt: "2024-01-13T09:15:00Z",
-            lastMessage: "Your art is amazing! 🎨",
-            unreadCount: 1,
-          },
-          {
-            id: "4",
-            name: "Maya",
-            age: 25,
-            bio: "Bookworm and tea enthusiast 📚 Passionate about literature and the perfect cup of tea.",
-            distance: "4 km away",
-            interests: ["Reading", "Tea", "Writing", "Poetry"],
-            photos: [image4, image5, image6],
-            matchedAt: "2024-01-12T14:20:00Z",
-            lastMessage: "What are you reading these days?",
-            unreadCount: 0,
-          },
-          {
-            id: "5",
-            name: "Sophia",
-            age: 27,
-            bio: "Fitness enthusiast and wellness advocate 💪 Helping others achieve their health goals.",
-            distance: "1 km away",
-            interests: ["Fitness", "Wellness", "Nutrition", "Meditation"],
-            photos: [image5, image6, image1],
-            matchedAt: "2024-01-11T11:00:00Z",
-            lastMessage: "Great workout today! 💪",
-            unreadCount: 3,
-          },
-        ];
-        setMatches(mockMatches);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadMatches();
+  const loadMatches = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const matchesData = await getMatches();
+      setMatches(matchesData);
+    } catch (err) {
+      console.error("Error loading matches:", err);
+      setError("Couldn't load your matches. Please try again.");
+      setMatches([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadMatches();
+  }, [loadMatches]);
 
   const formatMatchDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -130,10 +46,9 @@ const MatchesPage: React.FC = () => {
     }
   };
 
-  const handleStartChat = (match: Match) => {
+  const handleStartChat = (match: MatchResult) => {
     console.log("Starting chat with:", match.name);
-    // Navigate to chat or open chat modal
-    window.location.href = `/chat/${match.id}`;
+    navigate(`/chat/${match.id}`);
   };
 
   if (loading) {
@@ -143,6 +58,28 @@ const MatchesPage: React.FC = () => {
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-pink-500 mx-auto mb-4"></div>
             <p className="text-gray-600">Loading your matches...</p>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <div className="text-6xl mb-4">😕</div>
+            <h3 className="text-2xl font-bold text-gray-800 mb-2">
+              Something went wrong
+            </h3>
+            <p className="text-gray-600 mb-6">{error}</p>
+            <button
+              onClick={loadMatches}
+              className="bg-pink-500 text-white px-6 py-3 rounded-xl font-medium hover:bg-pink-600 transition-colors"
+            >
+              Try Again
+            </button>
           </div>
         </div>
       </MainLayout>
@@ -162,7 +99,7 @@ const MatchesPage: React.FC = () => {
               Start swiping to find your perfect match!
             </p>
             <button
-              onClick={() => (window.location.href = "/explore")}
+              onClick={() => navigate("/explore")}
               className="bg-gradient-to-r from-pink-500 to-red-500 text-white py-3 px-6 rounded-xl font-medium hover:from-pink-600 hover:to-red-600 transition-colors"
             >
               Start Exploring
