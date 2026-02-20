@@ -61,10 +61,14 @@ export const getPotentialMatches = async (req, res) => {
       query.gender = { $in: currentProfile.preferences.genders };
     }
 
-    // Get potential matches
+    // Get potential matches with pagination
+    const limit = Math.min(parseInt(req.query.limit) || 20, 50);
+    const skip = parseInt(req.query.skip) || 0;
+
     const potentialMatches = await Profile.find(query)
       .populate("userId", "name email")
-      .limit(20) // Limit results for performance
+      .skip(skip)
+      .limit(limit)
       .sort({ createdAt: -1 });
 
     // Transform the data for frontend

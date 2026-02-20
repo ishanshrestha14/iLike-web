@@ -13,6 +13,8 @@ const ExplorePage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [matchFound, setMatchFound] = useState(false);
   const [matchedUser, setMatchedUser] = useState<User | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
 
   const loadPotentialMatches = useCallback(async () => {
     try {
@@ -21,6 +23,7 @@ const ExplorePage: React.FC = () => {
       const potentialUsers = await getPotentialMatches();
       setUsers(potentialUsers);
       setCurrentUserIndex(0);
+      setHasMore(potentialUsers.length >= 20);
     } catch (err) {
       console.error("Error loading potential matches:", err);
       setError("Couldn't load profiles. Please try again.");
@@ -33,6 +36,26 @@ const ExplorePage: React.FC = () => {
   useEffect(() => {
     loadPotentialMatches();
   }, [loadPotentialMatches]);
+
+  // Auto-load next batch when current batch is exhausted
+  useEffect(() => {
+    if (currentUserIndex >= users.length && users.length > 0 && hasMore && !loadingMore) {
+      setLoadingMore(true);
+      getPotentialMatches().then((nextBatch) => {
+        if (nextBatch.length > 0) {
+          setUsers(nextBatch);
+          setCurrentUserIndex(0);
+          setHasMore(nextBatch.length >= 20);
+        } else {
+          setHasMore(false);
+        }
+      }).catch(() => {
+        setHasMore(false);
+      }).finally(() => {
+        setLoadingMore(false);
+      });
+    }
+  }, [currentUserIndex, users.length, hasMore, loadingMore]);
 
   const handleLike = async (userId: string) => {
     const user = users[currentUserIndex];
@@ -130,8 +153,7 @@ const ExplorePage: React.FC = () => {
     );
   }
 
-  // End-of-stack: all profiles have been swiped
-  if (currentUserIndex >= users.length) {
+  if (currentUserIndex >= users.length && !loadingMore) {
     return (
       <MainLayout>
         <div className="flex items-center justify-center h-96">
@@ -147,6 +169,19 @@ const ExplorePage: React.FC = () => {
             >
               Refresh
             </button>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (loadingMore) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-pink-500 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading more profiles...</p>
           </div>
         </div>
       </MainLayout>

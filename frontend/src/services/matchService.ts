@@ -95,9 +95,11 @@ export interface MatchResult {
 }
 
 // Get potential matches for swiping
-export const getPotentialMatches = async (): Promise<User[]> => {
+export const getPotentialMatches = async (skip = 0, limit = 20): Promise<User[]> => {
   try {
-    const response = await api.get("/matches/potential");
+    const response = await api.get("/matches/potential", {
+      params: { skip, limit },
+    });
     const raw: RawPotentialMatch[] = response.data.data || [];
     return raw.map((u) => ({
       id: String(u.id ?? ""),
