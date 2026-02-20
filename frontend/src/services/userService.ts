@@ -110,8 +110,8 @@ export const authService = {
   // Get current user profile (me)
   async getCurrentUser(): Promise<User> {
     try {
-      const response = await api.get<{ user: User }>("/users/me");
-      const user = response.data.user;
+      const response = await api.get<{ success: boolean; data: User }>("/users/me");
+      const user = response.data.data;
       
       // Update local storage with fresh user data
       if (user) {

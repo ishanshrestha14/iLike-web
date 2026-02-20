@@ -52,7 +52,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
 
         // Fetch current user's profile using axios (supports silent refresh)
-        const { data: userData } = await api.get("/users/me");
+        const { data: response } = await api.get("/users/me");
+        const userData = response.data;
         // Ensure isAdmin is always a boolean and merge with existing user data
         const normalizedUser = {
           ...userData,
