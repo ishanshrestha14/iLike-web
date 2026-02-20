@@ -6,6 +6,7 @@ import { dirname, join } from "path";
 import { mkdir } from "fs/promises";
 import { createServer } from "http";
 import dotenv from "dotenv";
+import cookieParser from "cookie-parser";
 import SocketServer from "./socket/socketServer.js";
 
 // Load environment variables
@@ -17,7 +18,7 @@ const __dirname = dirname(__filename);
 
 // Configure CORS with specific origin and credentials
 const corsOptions = {
-  origin: "http://localhost:3000", // Your frontend URL
+  origin: process.env.FRONTEND_URL || "http://localhost:3000",
   credentials: true, // Allow credentials (cookies, authorization headers, etc.)
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
@@ -28,6 +29,7 @@ const app = express();
 
 app.use(cors(corsOptions));
 app.use(express.json());
+app.use(cookieParser());
 
 // Import routes
 import userRoutes from "./routes/userRoutes.js";
@@ -105,9 +107,7 @@ const connectDB = async () => {
     const server = createServer(app);
     console.log("HTTP server created");
 
-    // Initialize Socket.IO (temporarily disabled)
-    console.log("Socket.IO temporarily disabled for debugging");
-    /*
+    // Initialize Socket.IO
     try {
       console.log("Initializing Socket.IO...");
       const socketServer = new SocketServer(server);
@@ -116,7 +116,6 @@ const connectDB = async () => {
       console.error("Socket.IO initialization failed:", error);
       // Continue without Socket.IO for now
     }
-    */
 
     // Start listening
     console.log("Starting to listen on port", PORT);
