@@ -15,35 +15,37 @@ export const getChats = async (req, res) => {
       isActive: true,
     }).populate("participants", "name");
 
-    // Get chat details with other user's info
-    const chatDetails = await Promise.all(
-      chats.map(async (chat) => {
-        // Find the other participant (not the current user)
-        const otherParticipant = chat.participants.find(
-          (p) => p._id.toString() !== userId
-        );
+    // Collect other participant IDs and batch-fetch their profiles (1 query instead of N)
+    const otherParticipantIds = chats
+      .map((chat) => chat.participants.find((p) => p._id.toString() !== userId)?._id)
+      .filter(Boolean);
 
-        if (!otherParticipant) {
-          return null;
-        }
+    const profiles = await Profile.find({ userId: { $in: otherParticipantIds } });
+    const profileMap = new Map(profiles.map((p) => [p.userId.toString(), p]));
 
-        // Get the other user's profile for additional info
-        const profile = await Profile.findOne({ userId: otherParticipant._id });
+    // Build chat details using the pre-fetched profile map
+    const chatDetails = chats.map((chat) => {
+      const otherParticipant = chat.participants.find(
+        (p) => p._id.toString() !== userId
+      );
 
-        return {
-          chatId: chat._id,
-          otherUserId: otherParticipant._id,
-          otherUserName: otherParticipant.name,
-          otherUserProfilePicture: profile?.profilePictureUrl || null,
-          otherUserPhotoUrls: profile?.photoUrls || [],
-          lastMessageTime: chat.lastMessage?.timestamp || chat.updatedAt,
-          lastMessage: chat.lastMessage?.content || "No messages yet",
-          isLastMessageFromMe:
-            chat.lastMessage?.senderId?.toString() === userId,
-          unreadCount: chat.unreadCounts.get(userId) || 0,
-        };
-      })
-    );
+      if (!otherParticipant) return null;
+
+      const profile = profileMap.get(otherParticipant._id.toString());
+
+      return {
+        chatId: chat._id,
+        otherUserId: otherParticipant._id,
+        otherUserName: otherParticipant.name,
+        otherUserProfilePicture: profile?.profilePictureUrl || null,
+        otherUserPhotoUrls: profile?.photoUrls || [],
+        lastMessageTime: chat.lastMessage?.timestamp || chat.updatedAt,
+        lastMessage: chat.lastMessage?.content || "No messages yet",
+        isLastMessageFromMe:
+          chat.lastMessage?.senderId?.toString() === userId,
+        unreadCount: chat.unreadCounts.get(userId) || 0,
+      };
+    });
 
     // Filter out null values and sort by last message time
     const validChats = chatDetails
