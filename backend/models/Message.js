@@ -75,7 +75,7 @@ messageSchema.pre("save", function (next) {
 // Index for efficient queries
 messageSchema.index({ chatId: 1, timestamp: -1 });
 messageSchema.index({ messageId: 1 });
-messageSchema.index({ senderId: 1 });
+messageSchema.index({ chatId: 1, senderId: 1, status: 1 });
 
 const Message = mongoose.model("Message", messageSchema);
 
