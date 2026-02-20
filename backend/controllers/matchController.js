@@ -19,29 +19,21 @@ export const getPotentialMatches = async (req, res) => {
       });
     }
 
-    // Get users that the current user has already liked or been liked by
-    const existingInteractions = await Match.find({
-      $or: [{ likerId: currentUserId }, { likedId: currentUserId }],
-    });
+    // Build excluded user IDs using distinct() — returns only IDs, not full documents
+    const [likedByMe, likedMe, blockedByMe, blockedMe] = await Promise.all([
+      Match.distinct("likedId", { likerId: currentUserId }),
+      Match.distinct("likerId", { likedId: currentUserId }),
+      Block.distinct("blockedId", { blockerId: currentUserId }),
+      Block.distinct("blockerId", { blockedId: currentUserId }),
+    ]);
 
-    const excludedUserIds = existingInteractions.map((interaction) =>
-      interaction.likerId.equals(currentUserId)
-        ? interaction.likedId
-        : interaction.likerId
-    );
-    excludedUserIds.push(currentUserId); // Exclude self
-
-    // Exclude blocked users (in either direction)
-    const blocks = await Block.find({
-      $or: [{ blockerId: currentUserId }, { blockedId: currentUserId }],
-    });
-    blocks.forEach((block) => {
-      excludedUserIds.push(
-        block.blockerId.equals(currentUserId)
-          ? block.blockedId
-          : block.blockerId
-      );
-    });
+    const excludedUserIds = [
+      currentUserId,
+      ...likedByMe,
+      ...likedMe,
+      ...blockedByMe,
+      ...blockedMe,
+    ];
 
     // Build query based on preferences
     const query = {
@@ -226,65 +218,86 @@ export const getMatches = async (req, res) => {
   try {
     const currentUserId = req.user._id;
 
-    // Get all matches for the current user
-    const matches = await Match.find({
-      $or: [
-        { likerId: currentUserId, isMatch: true },
-        { likedId: currentUserId, isMatch: true },
-      ],
-    }).populate([
+    const results = await Match.aggregate([
+      // 1. Find all mutual matches involving this user
       {
-        path: "likerId",
-        select: "name email",
+        $match: {
+          isMatch: true,
+          $or: [{ likerId: currentUserId }, { likedId: currentUserId }],
+        },
+      },
+      // 2. Compute the other user's ID
+      {
+        $addFields: {
+          otherUserId: {
+            $cond: [
+              { $eq: ["$likerId", currentUserId] },
+              "$likedId",
+              "$likerId",
+            ],
+          },
+        },
+      },
+      // 3. Lookup the other user's name from User collection
+      {
+        $lookup: {
+          from: "users",
+          localField: "otherUserId",
+          foreignField: "_id",
+          as: "otherUser",
+          pipeline: [{ $project: { name: 1 } }],
+        },
+      },
+      { $unwind: "$otherUser" },
+      // 4. Lookup profile for the other user
+      {
+        $lookup: {
+          from: "profiles",
+          localField: "otherUserId",
+          foreignField: "userId",
+          as: "otherProfile",
+          pipeline: [
+            {
+              $project: {
+                age: 1,
+                gender: 1,
+                location: 1,
+                photoUrls: 1,
+                profilePictureUrl: 1,
+                bio: 1,
+                interests: 1,
+              },
+            },
+          ],
+        },
       },
       {
-        path: "likedId",
-        select: "name email",
+        $unwind: { path: "$otherProfile", preserveNullAndEmptyArrays: true },
+      },
+      // 5. Project final shape
+      {
+        $project: {
+          matchId: "$_id",
+          matchedAt: 1,
+          user: {
+            id: "$otherUserId",
+            name: "$otherUser.name",
+            age: "$otherProfile.age",
+            gender: "$otherProfile.gender",
+            location: "$otherProfile.location",
+            photoUrls: { $ifNull: ["$otherProfile.photoUrls", []] },
+            profilePicture: "$otherProfile.profilePictureUrl",
+            bio: "$otherProfile.bio",
+            interests: { $ifNull: ["$otherProfile.interests", []] },
+          },
+        },
       },
     ]);
 
-    // Get all user IDs involved in matches
-    const allUserIds = [];
-    matches.forEach((match) => {
-      allUserIds.push(match.likerId._id, match.likedId._id);
-    });
-
-    // Get profiles for all users
-    const profiles = await Profile.find({ userId: { $in: allUserIds } });
-
-    // Create a map for quick lookup
-    const profileMap = {};
-    profiles.forEach((profile) => {
-      profileMap[profile.userId.toString()] = profile;
-    });
-
-    // Transform the data to show the other user in each match
-    const transformedMatches = matches.map((match) => {
-      const isLiker = match.likerId._id.equals(currentUserId);
-      const otherUser = isLiker ? match.likedId : match.likerId;
-      const otherUserProfile = profileMap[otherUser._id.toString()];
-
-      return {
-        matchId: match._id,
-        matchedAt: match.matchedAt,
-        user: {
-          id: otherUser._id,
-          name: otherUser.name,
-          age: otherUserProfile?.age,
-          gender: otherUserProfile?.gender,
-          location: otherUserProfile?.location,
-          photoUrls: otherUserProfile?.photoUrls || [],
-          profilePicture: otherUserProfile?.profilePictureUrl,
-          bio: otherUserProfile?.bio,
-          interests: otherUserProfile?.interests || [],
-        },
-      };
-    });
-
     res.status(200).json({
       success: true,
-      data: transformedMatches,
-      count: transformedMatches.length,
+      data: results,
+      count: results.length,
     });
   } catch (error) {
     console.error("Error getting matches:", error);
