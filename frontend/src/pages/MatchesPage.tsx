@@ -4,6 +4,7 @@ import MainLayout from "@/layouts/MainLayout";
 import { Heart, MessageCircle, MapPin } from "lucide-react";
 import { getMatches } from "@/services/matchService";
 import type { MatchResult } from "@/services/matchService";
+import * as socketService from "@/services/socketService";
 
 const MatchesPage: React.FC = () => {
   const navigate = useNavigate();
@@ -11,6 +12,34 @@ const MatchesPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedMatch, setSelectedMatch] = useState<MatchResult | null>(null);
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+
+  // Socket connection for online presence
+  useEffect(() => {
+    try {
+      socketService.connect();
+    } catch {
+      return;
+    }
+
+    const unsubs = [
+      socketService.onUserOnline(({ userId }) => {
+        setOnlineUsers((prev) => new Set(prev).add(userId));
+      }),
+      socketService.onUserOffline(({ userId }) => {
+        setOnlineUsers((prev) => {
+          const next = new Set(prev);
+          next.delete(userId);
+          return next;
+        });
+      }),
+    ];
+
+    return () => {
+      unsubs.forEach((unsub) => unsub());
+      socketService.disconnect();
+    };
+  }, []);
 
   const loadMatches = useCallback(async () => {
     try {
@@ -141,6 +170,12 @@ const MatchesPage: React.FC = () => {
                 <div className="absolute top-3 right-3 bg-white rounded-full p-2 shadow-md">
                   <Heart className="w-5 h-5 text-pink-500" />
                 </div>
+                {onlineUsers.has(match.id) && (
+                  <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm rounded-full px-2.5 py-1 shadow-md">
+                    <div className="w-2.5 h-2.5 bg-green-500 rounded-full"></div>
+                    <span className="text-xs font-medium text-gray-700">Online</span>
+                  </div>
+                )}
                 {match.unreadCount && match.unreadCount > 0 && (
                   <div className="absolute top-3 left-3 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
                     {match.unreadCount}
@@ -247,9 +282,17 @@ const MatchesPage: React.FC = () => {
 
               <div className="p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-2xl font-bold text-gray-800">
-                    {selectedMatch.name}, {selectedMatch.age}
-                  </h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-2xl font-bold text-gray-800">
+                      {selectedMatch.name}, {selectedMatch.age}
+                    </h2>
+                    {onlineUsers.has(selectedMatch.id) && (
+                      <div className="flex items-center gap-1 bg-green-100 text-green-700 rounded-full px-2 py-0.5">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span className="text-xs font-medium">Online</span>
+                      </div>
+                    )}
+                  </div>
                   <div className="flex items-center text-gray-600 text-sm">
                     <MapPin className="w-4 h-4 mr-1" />
                     {selectedMatch.distance}

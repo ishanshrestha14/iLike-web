@@ -9,6 +9,8 @@ import {
   Search,
   ShieldBan,
   Flag,
+  Check,
+  CheckCheck,
 } from "lucide-react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
@@ -158,6 +160,16 @@ const ChatPage: React.FC = () => {
                   lastMessageTime: event.lastMessageTime,
                 }
               : c
+          )
+        );
+      }),
+
+      socketService.onMessagesRead((event) => {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.chatId === event.chatId && m.isFromMe && m.status !== "read"
+              ? { ...m, status: "read" }
+              : m
           )
         );
       }),
@@ -575,15 +587,24 @@ const ChatPage: React.FC = () => {
                             }`}
                           >
                             <p className="text-sm">{message.content}</p>
-                            <p
-                              className={`text-xs mt-1 ${
+                            <span
+                              className={`flex items-center gap-1 text-xs mt-1 ${
                                 message.isFromMe
                                   ? "text-pink-100"
                                   : "text-gray-500"
                               }`}
                             >
                               {formatTime(message.timestamp)}
-                            </p>
+                              {message.isFromMe && (
+                                message.status === "read" ? (
+                                  <CheckCheck className="w-3.5 h-3.5 text-blue-300" />
+                                ) : message.status === "delivered" ? (
+                                  <CheckCheck className="w-3.5 h-3.5" />
+                                ) : (
+                                  <Check className="w-3.5 h-3.5" />
+                                )
+                              )}
+                            </span>
                           </div>
                         </div>
                       ))
