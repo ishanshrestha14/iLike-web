@@ -29,7 +29,7 @@ export const blockUser = async (req, res) => {
 
     res.json({ success: true, message: "User blocked" });
   } catch (error) {
-    console.error("Error blocking user:", error);
+
     res.status(500).json({ message: "Failed to block user" });
   }
 };
@@ -49,7 +49,7 @@ export const unblockUser = async (req, res) => {
 
     res.json({ success: true, message: "User unblocked" });
   } catch (error) {
-    console.error("Error unblocking user:", error);
+
     res.status(500).json({ message: "Failed to unblock user" });
   }
 };
@@ -85,7 +85,7 @@ export const reportUser = async (req, res) => {
 
     res.json({ success: true, message: "Report submitted" });
   } catch (error) {
-    console.error("Error reporting user:", error);
+
     res.status(500).json({ message: "Failed to report user" });
   }
 };

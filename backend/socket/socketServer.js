@@ -28,8 +28,6 @@ class SocketServer {
 
   setupEventHandlers() {
     this.io.on("connection", (socket) => {
-      console.log(`User connected: ${socket.userId}`);
-
       // Store user-socket mapping
       this.userSockets.set(socket.userId, socket.id);
       this.socketUsers.set(socket.id, socket.userId);
@@ -50,17 +48,14 @@ class SocketServer {
 
           if (chat) {
             socket.join(`chat_${chatId}`);
-            console.log(`User ${socket.userId} joined chat ${chatId}`);
           }
         } catch (error) {
-          console.error("Error joining chat:", error);
         }
       });
 
       // Handle leaving chat rooms
       socket.on("leave_chat", (chatId) => {
         socket.leave(`chat_${chatId}`);
-        console.log(`User ${socket.userId} left chat ${chatId}`);
       });
 
       // Handle typing indicators
@@ -158,7 +153,6 @@ class SocketServer {
 
           this.io.to(`chat_${chatId}`).emit("chat_updated", chatUpdate);
         } catch (error) {
-          console.error("Error sending message:", error);
           socket.emit("message_error", { message: "Failed to send message" });
         }
       });
@@ -203,14 +197,12 @@ class SocketServer {
             });
           }
         } catch (error) {
-          console.error("Error marking messages as read:", error);
+          // silently ignore read receipt errors
         }
       });
 
       // Handle disconnection
       socket.on("disconnect", () => {
-        console.log(`User disconnected: ${socket.userId}`);
-
         // Remove user-socket mappings
         this.userSockets.delete(socket.userId);
         this.socketUsers.delete(socket.id);
@@ -238,10 +230,6 @@ class SocketServer {
     }
   }
 
-  // Send to all users except sender
-  sendToAllExcept(socketId, event, data) {
-    socketId.to(event, data);
-  }
 }
 
 export default SocketServer;

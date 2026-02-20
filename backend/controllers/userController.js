@@ -91,16 +91,10 @@ export const register = async (req, res) => {
 };
 
 export const login = async (req, res) => {
-  console.log("Login request received:", {
-    body: req.body,
-    headers: req.headers,
-  });
-
   const { email, password } = req.body;
 
   // Validate request body
   if (!email || !password) {
-    console.error("Missing email or password");
     return res.status(400).json({
       success: false,
       message: "Email and password are required",
@@ -109,29 +103,24 @@ export const login = async (req, res) => {
   }
 
   try {
-    console.log("Looking for user with email:", email);
     const user = await User.findOne({ email });
 
     if (!user) {
-      console.error("User not found for email:", email);
       return res.status(401).json({
         success: false,
         message: "Invalid credentials",
       });
     }
 
-    console.log("User found, checking password...");
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
-      console.error("Password does not match for user:", email);
       return res.status(401).json({
         success: false,
         message: "Invalid credentials",
       });
     }
 
-    console.log("Authentication successful, generating token...");
     const token = generateAccessToken(user);
     const refreshToken = await generateRefreshToken(user);
 
@@ -153,18 +142,15 @@ export const login = async (req, res) => {
       profile: user.profile || null,
     };
 
-    console.log("Login successful for user:", userResponse.email);
     res.status(200).json({
       success: true,
       token,
       user: userResponse,
     });
   } catch (error) {
-    console.error("Login error:", error);
     res.status(500).json({
       success: false,
       message: "Error logging in",
-      error: error.message,
     });
   }
 };
@@ -206,7 +192,6 @@ export const getProfile = async (req, res) => {
 // @route   PUT /api/users/profile/:id
 // @access  Private
 export const updateProfile = async (req, res) => {
-  console.log("📤 Update profile hit");
   try {
     if (req.userId !== req.params.id) {
       return res.status(403).json({ message: "Not authorized to update this profile" });
@@ -274,7 +259,6 @@ export const refreshAccessToken = async (req, res) => {
 
     res.json({ success: true, token });
   } catch (error) {
-    console.error("Refresh token error:", error);
     res.status(500).json({ message: "Failed to refresh token" });
   }
 };
@@ -293,7 +277,6 @@ export const logoutUser = async (req, res) => {
     res.clearCookie("refreshToken", { path: "/" });
     res.json({ success: true, message: "Logged out" });
   } catch (error) {
-    console.error("Logout error:", error);
     res.status(500).json({ message: "Failed to logout" });
   }
 };

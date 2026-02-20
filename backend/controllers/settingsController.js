@@ -23,7 +23,7 @@ export const getSettings = async (req, res) => {
 
     res.json({ success: true, data: settings });
   } catch (error) {
-    console.error("Error fetching settings:", error);
+
     res.status(500).json({
       success: false,
       message: "Server error while fetching settings",
@@ -66,7 +66,7 @@ export const updateSettings = async (req, res) => {
       data: settings,
     });
   } catch (error) {
-    console.error("Error updating settings:", error);
+
     if (error.name === "ValidationError") {
       return res.status(400).json({
         success: false,

@@ -8,7 +8,7 @@ import Block from "../models/Block.js";
 // @access  Private
 export const getPotentialMatches = async (req, res) => {
   try {
-    const currentUserId = req.user._id;
+    const currentUserId = req.userId;
 
     // Get current user's profile and preferences
     const currentProfile = await Profile.findOne({ userId: currentUserId });
@@ -84,7 +84,6 @@ export const getPotentialMatches = async (req, res) => {
       count: matches.length,
     });
   } catch (error) {
-    console.error("Error getting potential matches:", error);
     res.status(500).json({
       success: false,
       message: "Error fetching potential matches",
@@ -97,7 +96,7 @@ export const getPotentialMatches = async (req, res) => {
 // @access  Private
 export const likeUser = async (req, res) => {
   try {
-    const likerId = req.user._id;
+    const likerId = req.userId;
     const likedId = req.params.userId;
 
     // Validate that the user exists and has completed profile
@@ -161,7 +160,6 @@ export const likeUser = async (req, res) => {
       matchId: isMatch ? newLike._id : null,
     });
   } catch (error) {
-    console.error("Error liking user:", error);
     res.status(500).json({
       success: false,
       message: "Error processing like",
@@ -174,7 +172,7 @@ export const likeUser = async (req, res) => {
 // @access  Private
 export const dislikeUser = async (req, res) => {
   try {
-    const likerId = req.user._id;
+    const likerId = req.userId;
     const likedId = req.params.userId;
 
     // Remove the like
@@ -203,7 +201,6 @@ export const dislikeUser = async (req, res) => {
       message: "Dislike processed successfully",
     });
   } catch (error) {
-    console.error("Error disliking user:", error);
     res.status(500).json({
       success: false,
       message: "Error processing dislike",
@@ -216,7 +213,7 @@ export const dislikeUser = async (req, res) => {
 // @access  Private
 export const getMatches = async (req, res) => {
   try {
-    const currentUserId = req.user._id;
+    const currentUserId = req.userId;
 
     const results = await Match.aggregate([
       // 1. Find all mutual matches involving this user
@@ -300,7 +297,6 @@ export const getMatches = async (req, res) => {
       count: results.length,
     });
   } catch (error) {
-    console.error("Error getting matches:", error);
     res.status(500).json({
       success: false,
       message: "Error fetching matches",
@@ -313,7 +309,7 @@ export const getMatches = async (req, res) => {
 // @access  Private
 export const getLikes = async (req, res) => {
   try {
-    const currentUserId = req.user._id;
+    const currentUserId = req.userId;
 
     // Get likes where current user is the one being liked
     const likes = await Match.find({
@@ -360,7 +356,6 @@ export const getLikes = async (req, res) => {
       count: transformedLikes.length,
     });
   } catch (error) {
-    console.error("Error getting likes:", error);
     res.status(500).json({
       success: false,
       message: "Error fetching likes",
@@ -373,7 +368,7 @@ export const getLikes = async (req, res) => {
 // @access  Private
 export const getLikesSent = async (req, res) => {
   try {
-    const currentUserId = req.user._id;
+    const currentUserId = req.userId;
 
     // Get likes where current user is the one who liked
     const likesSent = await Match.find({
@@ -420,7 +415,6 @@ export const getLikesSent = async (req, res) => {
       count: transformedLikesSent.length,
     });
   } catch (error) {
-    console.error("Error getting likes sent:", error);
     res.status(500).json({
       success: false,
       message: "Error fetching likes sent",

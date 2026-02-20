@@ -56,7 +56,6 @@ export const getChats = async (req, res) => {
 
     res.json(validChats);
   } catch (error) {
-    console.error("Error getting chats:", error);
     res.status(500).json({ message: "Failed to get chats" });
   }
 };
@@ -109,7 +108,6 @@ export const getMessages = async (req, res) => {
 
     res.json({ messages: formattedMessages, hasMore });
   } catch (error) {
-    console.error("Error getting messages:", error);
     res.status(500).json({ message: "Failed to get messages" });
   }
 };
@@ -174,7 +172,6 @@ export const sendMessage = async (req, res) => {
 
     res.status(201).json(formattedMessage);
   } catch (error) {
-    console.error("Error sending message:", error);
     res.status(500).json({ message: "Failed to send message" });
   }
 };
@@ -220,7 +217,6 @@ export const markMessagesAsRead = async (req, res) => {
 
     res.json({ message: "Messages marked as read" });
   } catch (error) {
-    console.error("Error marking messages as read:", error);
     res.status(500).json({ message: "Failed to mark messages as read" });
   }
 };
@@ -302,7 +298,6 @@ export const createChat = async (req, res) => {
 
     res.status(201).json(chatResponse);
   } catch (error) {
-    console.error("Error creating chat:", error);
     res.status(500).json({ message: "Failed to create chat" });
   }
 };
@@ -349,7 +344,6 @@ export const getChatById = async (req, res) => {
 
     res.json(chatResponse);
   } catch (error) {
-    console.error("Error getting chat:", error);
     res.status(500).json({ message: "Failed to get chat" });
   }
 };
@@ -372,7 +366,6 @@ export const deleteChat = async (req, res) => {
 
     res.json({ message: "Chat deleted successfully" });
   } catch (error) {
-    console.error("Error deleting chat:", error);
     res.status(500).json({ message: "Failed to delete chat" });
   }
 };

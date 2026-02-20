@@ -7,7 +7,7 @@ import { generateAccessToken } from "./userController.js";
 // @access  Private
 export const getProfile = async (req, res) => {
   try {
-    const profile = await Profile.findOne({ userId: req.user._id }).select(
+    const profile = await Profile.findOne({ userId: req.userId }).select(
       "-__v -createdAt -updatedAt"
     );
 
@@ -19,7 +19,6 @@ export const getProfile = async (req, res) => {
 
     res.json({ success: true, data: profile });
   } catch (error) {
-    console.error("Error fetching profile:", error);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
@@ -107,7 +106,7 @@ export const setupProfile = async (req, res) => {
 
     // Prepare profile data
     const profileData = {
-      userId: req.user._id,
+      userId: req.userId,
       name,
       gender,
       location,
@@ -122,12 +121,12 @@ export const setupProfile = async (req, res) => {
     };
 
     // Find and update or create profile
-    let profile = await Profile.findOne({ userId: req.user._id });
+    let profile = await Profile.findOne({ userId: req.userId });
 
     if (profile) {
       // Update existing profile
       profile = await Profile.findOneAndUpdate(
-        { userId: req.user._id },
+        { userId: req.userId },
         { $set: profileData },
         { new: true, runValidators: true }
       );
@@ -139,7 +138,7 @@ export const setupProfile = async (req, res) => {
 
     // Update user's profile completion status
     const updatedUser = await User.findByIdAndUpdate(
-      req.user._id,
+      req.userId,
       { hasCompletedProfile: true },
       { new: true }
     );
@@ -154,8 +153,6 @@ export const setupProfile = async (req, res) => {
       token: newToken, // Return new token
     });
   } catch (error) {
-    console.error("Error saving profile - Full error:", error);
-    console.error("Error stack trace:", error.stack);
     if (error.name === "ValidationError") {
       return res.status(400).json({
         success: false,
@@ -218,7 +215,7 @@ export const updateProfile = async (req, res) => {
 
     // Update profile
     const profile = await Profile.findOneAndUpdate(
-      { userId: req.user._id },
+      { userId: req.userId },
       { $set: updates },
       { new: true, runValidators: true }
     );
@@ -236,7 +233,6 @@ export const updateProfile = async (req, res) => {
       data: profile,
     });
   } catch (error) {
-    console.error("Error updating profile:", error);
     if (error.name === "ValidationError") {
       return res.status(400).json({
         success: false,
@@ -267,7 +263,7 @@ export const updateProfilePicture = async (req, res) => {
 
     // Update profile with new profile picture
     const profile = await Profile.findOneAndUpdate(
-      { userId: req.user._id },
+      { userId: req.userId },
       { $set: { profilePictureUrl } },
       { new: true }
     );
@@ -285,7 +281,6 @@ export const updateProfilePicture = async (req, res) => {
       data: { profilePictureUrl: profile.profilePictureUrl },
     });
   } catch (error) {
-    console.error("Error updating profile picture:", error);
     res.status(500).json({
       success: false,
       message: "Server error while updating profile picture",
@@ -313,7 +308,6 @@ export const uploadIndividualPhoto = async (req, res) => {
       url: photoUrl,
     });
   } catch (error) {
-    console.error("Error uploading photo:", error);
     res.status(500).json({
       success: false,
       message: "Server error while uploading photo",
