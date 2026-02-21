@@ -1,5 +1,5 @@
 import { io, Socket } from "socket.io-client";
-import { SERVER_BASE_URL } from "@/services/api";
+import { SERVER_BASE_URL, getAccessToken } from "@/services/api";
 
 // Types matching backend socket events
 export interface SocketMessage {
@@ -41,7 +41,7 @@ let socket: Socket | null = null;
 export const connect = (): Socket => {
   if (socket?.connected) return socket;
 
-  const token = localStorage.getItem("token");
+  const token = getAccessToken();
   if (!token) throw new Error("No auth token found");
 
   socket = io(SERVER_BASE_URL, {

@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { AuthContext } from "./AuthContext";
 import { authService } from "@/services/userService";
-import api from "@/services/api";
+import api, { setAccessToken } from "@/services/api";
+import axios from "axios";
 import type { AuthContextType, User } from "./auth.types";
 
 interface AuthProviderProps {
@@ -36,40 +37,45 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const token = authService.getToken();
       const storedUser = localStorage.getItem("user");
 
-      if (!token) {
-        setIsLoading(false);
-        return;
+      // Optimistically show stored user while we rehydrate
+      if (storedUser) {
+        try {
+          setUser(JSON.parse(storedUser));
+        } catch {
+          localStorage.removeItem("user");
+        }
       }
 
       try {
-        // If we have a stored user, use it while we fetch fresh data
-        if (storedUser) {
-          const parsedUser = JSON.parse(storedUser);
-          setUser(parsedUser);
-        }
+        // Rehydrate in-memory access token from httpOnly refresh cookie
+        const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
+        const { data: refreshData } = await axios.post(
+          `${apiBase}/users/refresh`,
+          {},
+          { withCredentials: true }
+        );
+        setAccessToken(refreshData.token);
 
-        // Fetch current user's profile using axios (supports silent refresh)
+        // Fetch fresh user profile
         const { data: response } = await api.get("/users/me");
         const userData = response.data;
-        // Ensure isAdmin is always a boolean and merge with existing user data
         const normalizedUser = {
           ...userData,
           isAdmin: Boolean(userData.isAdmin),
-          // Preserve hasCompletedProfile from local storage if it exists
           hasCompletedProfile:
             userData.hasCompletedProfile ||
             (storedUser ? JSON.parse(storedUser).hasCompletedProfile : false),
         };
 
-        // Update the stored user data
         localStorage.setItem("user", JSON.stringify(normalizedUser));
         setUser(normalizedUser);
-      } catch (error) {
-        console.error("Failed to fetch user profile", error);
-        authService.logout();
+      } catch {
+        // No valid session — clear any stale user data
+        setAccessToken(null);
+        localStorage.removeItem("user");
+        setUser(null);
       } finally {
         setIsLoading(false);
       }
@@ -81,22 +87,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (
     credentials: Parameters<AuthContextType["login"]>[0]
   ) => {
-    console.log("Attempting login with:", credentials.email);
     try {
       const response = await authService.login(credentials);
-      console.log("Login response in AuthContext:", response);
-
-      // Ensure isAdmin is a boolean
       const userWithAdmin = {
         ...response.user,
         isAdmin: Boolean(response.user.isAdmin),
       };
-
-      console.log("Setting user in context:", userWithAdmin);
       setUser(userWithAdmin);
       return { user: userWithAdmin };
     } catch (error) {
-      console.error("Login failed:", error);
       throw error;
     }
   };
@@ -108,13 +107,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const response = await authService.register(userData);
       const userWithDefaults = {
         ...response.user,
-        hasCompletedProfile: false, // New users always start with incomplete profile
+        hasCompletedProfile: false,
         isAdmin: Boolean(response.user.isAdmin),
       };
       setUser(userWithDefaults);
       localStorage.setItem("user", JSON.stringify(userWithDefaults));
     } catch (error) {
-      console.error("Registration failed:", error);
       throw error;
     }
   };

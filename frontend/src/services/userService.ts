@@ -1,4 +1,4 @@
-import api from "./api";
+import api, { setAccessToken, getAccessToken } from "./api";
 
 export interface User {
   id?: string;
@@ -40,7 +40,7 @@ export const authService = {
     const response = await api.post<AuthResponse>("/users/register", userData);
     const { token, user } = response.data;
     if (token) {
-      localStorage.setItem("token", token);
+      setAccessToken(token);
       localStorage.setItem("user", JSON.stringify(user));
     }
     return response.data;
@@ -55,10 +55,9 @@ export const authService = {
       
       const { token, user } = response.data;
       if (token) {
-        localStorage.setItem("token", token);
+        setAccessToken(token);
         localStorage.setItem("user", JSON.stringify(user));
       } else {
-        console.error('No token received in login response');
         throw new Error('Authentication failed: No token received');
       }
       return response.data;
@@ -92,19 +91,19 @@ export const authService = {
     } catch {
       // Ignore errors — we're logging out anyway
     }
-    localStorage.removeItem("token");
+    setAccessToken(null);
     localStorage.removeItem("user");
     window.location.href = "/auth";
   },
 
   // Get auth token
   getToken(): string | null {
-    return localStorage.getItem("token");
+    return getAccessToken();
   },
 
   // Check if user is authenticated
   isAuthenticated(): boolean {
-    return !!localStorage.getItem("token");
+    return !!getAccessToken();
   },
 
   // Get current user profile (me)
@@ -154,7 +153,7 @@ export const authService = {
   // Delete account
   async deleteAccount(password: string): Promise<void> {
     await api.delete("/users/me", { data: { password } });
-    localStorage.removeItem("token");
+    setAccessToken(null);
     localStorage.removeItem("user");
   },
 
