@@ -43,6 +43,11 @@ const messageSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    // Soft delete timestamp (null = not deleted)
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
     // Whether the message has been read by recipients
     readBy: [
       {

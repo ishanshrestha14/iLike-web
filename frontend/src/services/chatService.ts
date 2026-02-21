@@ -21,6 +21,7 @@ export interface ChatMessage {
   status: string;
   timestamp: string;
   isFromMe: boolean;
+  deletedAt?: string | null;
 }
 
 export const getChats = async (): Promise<ChatSummary[]> => {
@@ -63,6 +64,14 @@ export const createChat = async (otherUserId: string): Promise<ChatSummary> => {
 
 export const getChatById = async (chatId: string): Promise<ChatSummary> => {
   const { data } = await api.get(`/chats/${chatId}`);
+  return data;
+};
+
+export const deleteMessage = async (
+  chatId: string,
+  messageId: string
+): Promise<{ success: boolean; message: string; messageId: string }> => {
+  const { data } = await api.delete(`/chats/${chatId}/messages/${messageId}`);
   return data;
 };
 

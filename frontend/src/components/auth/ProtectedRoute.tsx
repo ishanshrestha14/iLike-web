@@ -13,13 +13,6 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const { isAuthenticated, isLoading, user } = useAuth();
   const location = useLocation();
 
-  console.log("ProtectedRoute check:", {
-    isAuthenticated,
-    isAdmin: user?.isAdmin,
-    adminOnly,
-    path: location.pathname,
-  });
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">

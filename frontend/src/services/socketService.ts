@@ -90,6 +90,10 @@ export const markRead = (chatId: string) => {
   socket?.emit("mark_read", { chatId });
 };
 
+export const deleteMessage = (chatId: string, messageId: string) => {
+  socket?.emit("delete_message", { chatId, messageId });
+};
+
 // Event listeners — return unsubscribe functions
 export const onMessage = (cb: (msg: SocketMessage) => void) => {
   socket?.on("new_message", cb);
@@ -124,6 +128,16 @@ export const onUserOnline = (cb: (event: UserStatusEvent) => void) => {
 export const onUserOffline = (cb: (event: UserStatusEvent) => void) => {
   socket?.on("user_offline", cb);
   return () => { socket?.off("user_offline", cb); };
+};
+
+export interface MessageDeletedEvent {
+  chatId: string;
+  messageId: string;
+}
+
+export const onMessageDeleted = (cb: (event: MessageDeletedEvent) => void) => {
+  socket?.on("message_deleted", cb);
+  return () => { socket?.off("message_deleted", cb); };
 };
 
 export const onMessageError = (cb: (err: { message: string }) => void) => {

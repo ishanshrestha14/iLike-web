@@ -2,6 +2,7 @@ import Profile from "../models/Profile.js";
 import User from "../models/user.js";
 import { generateAccessToken } from "./userController.js";
 import { isValidPhotoUrl } from "../utils/validate.js";
+import { uploadToCloudinary } from "../utils/cloudinaryConfig.js";
 
 // @desc    Get current user's profile
 // @route   GET /api/profile/me
@@ -87,12 +88,13 @@ export const setupProfile = async (req, res) => {
       });
     }
 
-    // Handle uploaded files
+    // Upload files to Cloudinary
     const uploadedPhotos = [];
-
-    // Handle photos upload from any client
     if (req.files && req.files.length > 0) {
-      uploadedPhotos.push(...req.files.map((file) => file.path));
+      const uploads = await Promise.all(
+        req.files.map((file) => uploadToCloudinary(file.buffer))
+      );
+      uploadedPhotos.push(...uploads.map((u) => u.secure_url));
     }
 
     // Filter invalid URLs from user-provided photos
@@ -219,7 +221,8 @@ export const updateProfile = async (req, res) => {
 
     // Handle file upload if exists
     if (req.file) {
-      updates.profilePictureUrl = req.file.path;
+      const result = await uploadToCloudinary(req.file.buffer);
+      updates.profilePictureUrl = result.secure_url;
     }
 
     // Update profile
@@ -268,7 +271,8 @@ export const updateProfilePicture = async (req, res) => {
       });
     }
 
-    const profilePictureUrl = req.file.path;
+    const result = await uploadToCloudinary(req.file.buffer);
+    const profilePictureUrl = result.secure_url;
 
     // Update profile with new profile picture
     const profile = await Profile.findOneAndUpdate(
@@ -309,12 +313,11 @@ export const uploadIndividualPhoto = async (req, res) => {
       });
     }
 
-    // Return the URL of the uploaded file
-    const photoUrl = req.file.path;
+    const result = await uploadToCloudinary(req.file.buffer);
 
     res.json({
       success: true,
-      url: photoUrl,
+      url: result.secure_url,
     });
   } catch (error) {
     res.status(500).json({

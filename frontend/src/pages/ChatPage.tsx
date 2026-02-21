@@ -11,6 +11,8 @@ import {
   Flag,
   Check,
   CheckCheck,
+  Trash2,
+  Ban,
 } from "lucide-react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
@@ -94,39 +96,92 @@ const MessageBubble = React.memo(
   ({
     message,
     formatTime,
+    onDelete,
   }: {
     message: ChatMessage;
     formatTime: (date: string | Date) => string;
-  }) => (
-    <div
-      className={`flex ${message.isFromMe ? "justify-end" : "justify-start"}`}
-    >
+    onDelete?: (messageId: string) => void;
+  }) => {
+    const [showDelete, setShowDelete] = useState(false);
+    const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const isDeleted = !!message.deletedAt;
+    const canDelete = message.isFromMe && !isDeleted && onDelete;
+
+    const handleMouseEnter = () => {
+      if (canDelete) setShowDelete(true);
+    };
+    const handleMouseLeave = () => {
+      setShowDelete(false);
+    };
+    const handleTouchStart = () => {
+      if (canDelete) {
+        longPressTimer.current = setTimeout(() => setShowDelete(true), 500);
+      }
+    };
+    const handleTouchEnd = () => {
+      if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    };
+
+    return (
       <div
-        className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
-          message.isFromMe
-            ? "bg-gradient-to-r from-pink-500 to-red-500 text-white"
-            : "bg-white text-gray-800 shadow-sm"
-        }`}
+        className={`group flex ${message.isFromMe ? "justify-end" : "justify-start"}`}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
       >
-        <p className="text-sm">{message.content}</p>
-        <span
-          className={`flex items-center gap-1 text-xs mt-1 ${
-            message.isFromMe ? "text-pink-100" : "text-gray-500"
+        {/* Delete button (before bubble for own messages) */}
+        {message.isFromMe && showDelete && (
+          <button
+            onClick={() => onDelete?.(message.messageId)}
+            className="self-center mr-2 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
+            title="Delete message"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        )}
+
+        <div
+          className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
+            isDeleted
+              ? "bg-gray-100 border border-gray-200"
+              : message.isFromMe
+                ? "bg-gradient-to-r from-pink-500 to-red-500 text-white"
+                : "bg-white text-gray-800 shadow-sm"
           }`}
         >
-          {formatTime(message.timestamp)}
-          {message.isFromMe &&
-            (message.status === "read" ? (
-              <CheckCheck className="w-3.5 h-3.5 text-blue-300" />
-            ) : message.status === "delivered" ? (
-              <CheckCheck className="w-3.5 h-3.5" />
-            ) : (
-              <Check className="w-3.5 h-3.5" />
-            ))}
-        </span>
+          {isDeleted ? (
+            <p className="text-sm italic text-gray-400 flex items-center gap-1.5">
+              <Ban className="w-3.5 h-3.5" />
+              This message was deleted
+            </p>
+          ) : (
+            <p className="text-sm">{message.content}</p>
+          )}
+          <span
+            className={`flex items-center gap-1 text-xs mt-1 ${
+              isDeleted
+                ? "text-gray-400"
+                : message.isFromMe
+                  ? "text-pink-100"
+                  : "text-gray-500"
+            }`}
+          >
+            {formatTime(message.timestamp)}
+            {message.isFromMe &&
+              !isDeleted &&
+              (message.status === "read" ? (
+                <CheckCheck className="w-3.5 h-3.5 text-blue-300" />
+              ) : message.status === "delivered" ? (
+                <CheckCheck className="w-3.5 h-3.5" />
+              ) : (
+                <Check className="w-3.5 h-3.5" />
+              ))}
+          </span>
+        </div>
       </div>
-    </div>
-  )
+    );
+  }
 );
 
 const ChatPage: React.FC = () => {
@@ -178,7 +233,7 @@ const ChatPage: React.FC = () => {
             }
           }
         }
-      } catch (error) {
+      } catch {
         // load failed — loading state cleared in finally
       } finally {
         setLoading(false);
@@ -280,6 +335,24 @@ const ChatPage: React.FC = () => {
           )
         );
       }),
+
+      socketService.onMessageDeleted((event) => {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.messageId === event.messageId
+              ? { ...m, deletedAt: new Date().toISOString(), content: "This message was deleted" }
+              : m
+          )
+        );
+        // Update conversation preview if the deleted message was the last one
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.chatId === event.chatId
+              ? { ...c, lastMessage: "Message deleted" }
+              : c
+          )
+        );
+      }),
     ];
 
     return () => {
@@ -303,7 +376,7 @@ const ChatPage: React.FC = () => {
           setMessages(msgs);
           setHasMoreMessages(hasMore);
         }
-      } catch (error) {
+      } catch {
         // message load failed
         if (!ignore) {
           setMessages([]);
@@ -329,6 +402,7 @@ const ChatPage: React.FC = () => {
       ignore = true;
       socketService.leaveChat(selectedChat.chatId);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- re-run only when chatId changes, not on every selectedChat reference update
   }, [selectedChat?.chatId]);
 
   // Auto-scroll on new messages
@@ -391,7 +465,7 @@ const ChatPage: React.FC = () => {
       setSelectedChat(null);
       setMessages([]);
       setShowMenu(false);
-    } catch (error) {
+    } catch {
       // block failed
     }
   };
@@ -408,7 +482,7 @@ const ChatPage: React.FC = () => {
       setReportReason("inappropriate");
       setReportDescription("");
       setShowMenu(false);
-    } catch (error) {
+    } catch {
       // report failed
     }
   };
@@ -508,12 +582,34 @@ const ChatPage: React.FC = () => {
           container.scrollTop = container.scrollHeight - prevScrollHeight;
         }
       });
-    } catch (error) {
+    } catch {
       // older messages load failed
     } finally {
       setLoadingOlder(false);
     }
   }, [selectedChat, hasMoreMessages, loadingOlder, messages]);
+
+  const handleDeleteMessage = useCallback(
+    async (messageId: string) => {
+      if (!selectedChat) return;
+      try {
+        // Emit socket event for real-time update
+        socketService.deleteMessage(selectedChat.chatId, messageId);
+
+        // Optimistic update
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.messageId === messageId
+              ? { ...m, deletedAt: new Date().toISOString(), content: "This message was deleted" }
+              : m
+          )
+        );
+      } catch {
+        toast.error("Failed to delete message");
+      }
+    },
+    [selectedChat]
+  );
 
   const selectConversation = (chat: ChatSummary) => {
     setSelectedChat(chat);
@@ -700,6 +796,7 @@ const ChatPage: React.FC = () => {
                           key={message.messageId}
                           message={message}
                           formatTime={formatTime}
+                          onDelete={handleDeleteMessage}
                         />
                       ))
                     )}

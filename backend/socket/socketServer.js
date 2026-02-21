@@ -184,6 +184,40 @@ class SocketServer {
         }
       });
 
+      // Handle message deletion
+      socket.on("delete_message", async (data) => {
+        try {
+          const { chatId, messageId } = data;
+
+          const chat = await Chat.findOne({
+            _id: chatId,
+            participants: socket.userId,
+          });
+          if (!chat) return;
+
+          const message = await Message.findOne({ messageId, chatId });
+          if (!message || message.deletedAt) return;
+          if (message.senderId.toString() !== socket.userId) return;
+
+          message.deletedAt = new Date();
+          await message.save();
+
+          // Update chat last message if needed
+          if (chat.lastMessage?.content === message.content) {
+            chat.lastMessage.content = "Message deleted";
+            await chat.save();
+          }
+
+          // Notify all participants in the chat room
+          this.io.to(`chat_${chatId}`).emit("message_deleted", {
+            chatId,
+            messageId,
+          });
+        } catch (error) {
+          socket.emit("message_error", { message: "Failed to delete message" });
+        }
+      });
+
       // Handle read receipts
       socket.on("mark_read", async (data) => {
         try {

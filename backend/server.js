@@ -51,6 +51,23 @@ app.get("/", (req, res) => {
   res.send("iLike application backend is running!");
 });
 
+// Global error handler — catches multer, validation, and unhandled errors
+app.use((err, req, res, _next) => {
+  const message = typeof err === "string" ? err : err?.message || "Internal server error";
+  console.error("Unhandled error:", message);
+
+  // Multer file size / field errors
+  if (err.code === "LIMIT_FILE_SIZE") {
+    return res.status(400).json({ success: false, message: "File too large (max 5MB)" });
+  }
+  if (err.code === "LIMIT_UNEXPECTED_FILE") {
+    return res.status(400).json({ success: false, message: "Unexpected file field" });
+  }
+
+  const status = err.status || err.statusCode || 500;
+  res.status(status).json({ success: false, message });
+});
+
 // Initialize server function
 const initServer = async () => {
   // Ensure uploads directory exists

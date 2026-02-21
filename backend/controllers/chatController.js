@@ -101,11 +101,12 @@ export const getMessages = async (req, res) => {
       messageId: message.messageId,
       chatId: message.chatId,
       senderId: message.senderId._id,
-      content: message.content,
+      content: message.deletedAt ? "This message was deleted" : message.content,
       type: message.type,
       status: message.status,
       timestamp: message.timestamp,
       isFromMe: message.senderId._id.toString() === userId,
+      deletedAt: message.deletedAt || null,
     }));
 
     // Mark messages as read for the current user
@@ -366,6 +367,52 @@ export const getChatById = async (req, res) => {
     res.json(chatResponse);
   } catch (error) {
     res.status(500).json({ success: false, message: "Failed to get chat" });
+  }
+};
+
+// Delete a message (soft delete)
+export const deleteMessage = async (req, res) => {
+  try {
+    const { chatId, messageId } = req.params;
+    const userId = req.userId;
+
+    if (!isValidObjectId(chatId)) {
+      return res.status(400).json({ success: false, message: "Invalid chat ID" });
+    }
+
+    // Verify the user is a participant in this chat
+    const chat = await Chat.findOne({ _id: chatId, participants: userId });
+    if (!chat) {
+      return res.status(404).json({ success: false, message: "Chat not found" });
+    }
+
+    // Find the message by messageId (string field, not _id)
+    const message = await Message.findOne({ messageId, chatId });
+    if (!message) {
+      return res.status(404).json({ success: false, message: "Message not found" });
+    }
+
+    if (message.deletedAt) {
+      return res.status(400).json({ success: false, message: "Message already deleted" });
+    }
+
+    // Only the sender can delete their own message
+    if (message.senderId.toString() !== userId) {
+      return res.status(403).json({ success: false, message: "You can only delete your own messages" });
+    }
+
+    message.deletedAt = new Date();
+    await message.save();
+
+    // If this was the last message in the chat, update chat.lastMessage
+    if (chat.lastMessage?.content === message.content) {
+      chat.lastMessage.content = "Message deleted";
+      await chat.save();
+    }
+
+    res.json({ success: true, message: "Message deleted", messageId });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Failed to delete message" });
   }
 };
 
