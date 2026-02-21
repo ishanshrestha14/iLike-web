@@ -285,13 +285,15 @@ const HomePage: React.FC = () => {
 
           {/* Quick Actions */}
           <div className="bg-gradient-to-r from-pink-500 to-red-500 rounded-3xl p-6 text-white shadow-lg">
-            <h3 className="text-lg font-bold mb-4">Boost Your Profile</h3>
-            <p className="text-pink-100 text-sm mb-4">
-              Get 10x more matches with premium features!
+            <div className="flex items-center gap-2 mb-4">
+              <h3 className="text-lg font-bold">Boost Your Profile</h3>
+              <span className="text-xs bg-white/20 text-white px-2 py-0.5 rounded-full font-medium">
+                Coming Soon
+              </span>
+            </div>
+            <p className="text-pink-100 text-sm">
+              Premium features are on the way — stay tuned!
             </p>
-            <button className="w-full bg-white text-pink-600 py-2 px-4 rounded-xl font-medium hover:bg-gray-50 transition-colors">
-              Upgrade Now
-            </button>
           </div>
         </div>
       </div>
