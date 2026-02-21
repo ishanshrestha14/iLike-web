@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import DOMPurify from "dompurify";
 import Navbar from "@/components/Navbar";
 import {
   Send,
@@ -108,7 +109,7 @@ const MessageBubble = React.memo(
             : "bg-white text-gray-800 shadow-sm"
         }`}
       >
-        <p className="text-sm">{message.content}</p>
+        <p className="text-sm">{DOMPurify.sanitize(message.content)}</p>
         <span
           className={`flex items-center gap-1 text-xs mt-1 ${
             message.isFromMe ? "text-pink-100" : "text-gray-500"

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import DOMPurify from "dompurify";
 import MainLayout from "@/layouts/MainLayout";
 import {
   getProfile,
@@ -284,7 +285,7 @@ const ProfilePage = () => {
                 />
               ) : (
                 <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
-                  {profile.bio}
+                  {DOMPurify.sanitize(profile.bio)}
                 </p>
               )}
             </div>

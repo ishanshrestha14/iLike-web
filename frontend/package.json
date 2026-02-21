@@ -14,10 +14,12 @@
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.3",
+    "@types/dompurify": "^3.0.5",
     "@types/react-toastify": "^4.0.2",
     "axios": "^1.9.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "dompurify": "^3.3.1",
     "framer-motion": "^12.23.12",
     "lucide-react": "^0.514.0",
     "react": "^19.1.0",
