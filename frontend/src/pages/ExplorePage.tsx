@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import MainLayout from "@/layouts/MainLayout";
 import { CardSwipe } from "@/components/ui/card-swipe";
-import { getPotentialMatches, likeUser, dislikeUser } from "@/services/matchService";
+import { getPotentialMatches, likeUser, dislikeUser, undoLastSwipe } from "@/services/matchService";
 import type { User } from "@/services/matchService";
 
 const ExplorePage: React.FC = () => {
@@ -15,6 +15,7 @@ const ExplorePage: React.FC = () => {
   const [matchedUser, setMatchedUser] = useState<User | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
+  const [lastSwipeTime, setLastSwipeTime] = useState<number | null>(null);
 
   const loadPotentialMatches = useCallback(async () => {
     try {
@@ -57,6 +58,13 @@ const ExplorePage: React.FC = () => {
     }
   }, [currentUserIndex, users.length, hasMore, loadingMore]);
 
+  // Auto-expire undo after 30 seconds
+  useEffect(() => {
+    if (lastSwipeTime === null) return;
+    const timer = setTimeout(() => setLastSwipeTime(null), 30000);
+    return () => clearTimeout(timer);
+  }, [lastSwipeTime]);
+
   const handleLike = async (userId: string) => {
     const user = users[currentUserIndex];
     if (!user) return;
@@ -74,6 +82,7 @@ const ExplorePage: React.FC = () => {
     }
 
     // Move to next user
+    setLastSwipeTime(Date.now());
     moveToNextUser();
   };
 
@@ -90,7 +99,18 @@ const ExplorePage: React.FC = () => {
     }
 
     // Move to next user
+    setLastSwipeTime(Date.now());
     moveToNextUser();
+  };
+
+  const handleUndo = async () => {
+    try {
+      await undoLastSwipe();
+      setCurrentUserIndex((prev) => prev - 1);
+      setLastSwipeTime(null);
+    } catch (error) {
+      console.error("Error undoing swipe:", error);
+    }
   };
 
   const moveToNextUser = () => {
@@ -212,6 +232,8 @@ const ExplorePage: React.FC = () => {
           userDistance={currentUser.distance}
           onLike={() => handleLike(currentUser.id)}
           onDislike={() => handleDislike(currentUser.id)}
+          onUndo={handleUndo}
+          undoDisabled={currentUserIndex === 0 || lastSwipeTime === null}
         />
 
         {/* Match Found Modal */}

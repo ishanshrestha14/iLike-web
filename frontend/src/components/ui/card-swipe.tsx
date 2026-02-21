@@ -11,7 +11,7 @@ import "swiper/css/effect-coverflow";
 
 import { EffectCards } from "swiper/modules";
 
-import { Heart, X, ChevronDown } from "lucide-react";
+import { Heart, X, ChevronDown, Undo2 } from "lucide-react";
 import { Autoplay, Navigation, Pagination } from "swiper/modules";
 
 interface CarouselProps {
@@ -25,6 +25,8 @@ interface CarouselProps {
   userDistance?: string;
   onLike?: () => void;
   onDislike?: () => void;
+  onUndo?: () => void;
+  undoDisabled?: boolean;
 }
 
 export const CardSwipe: React.FC<CarouselProps> = ({
@@ -38,6 +40,8 @@ export const CardSwipe: React.FC<CarouselProps> = ({
   userDistance,
   onLike,
   onDislike,
+  onUndo,
+  undoDisabled = true,
 }) => {
   const [isExpanded, setIsExpanded] = React.useState(false);
   const css = `
@@ -152,6 +156,14 @@ export const CardSwipe: React.FC<CarouselProps> = ({
             aria-label="Dislike"
           >
             <X className="w-7 h-7 text-red-500" />
+          </button>
+          <button
+            onClick={onUndo}
+            disabled={undoDisabled}
+            className="bg-white p-3 rounded-full shadow-xl hover:shadow-2xl hover:bg-gray-50 transition-all duration-200 transform hover:scale-105 border border-gray-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-xl"
+            aria-label="Undo"
+          >
+            <Undo2 className="w-5 h-5 text-amber-500" />
           </button>
           <button
             onClick={onLike}

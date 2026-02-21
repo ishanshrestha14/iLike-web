@@ -415,6 +415,67 @@ export const getLikes = async (req, res) => {
   }
 };
 
+// @desc    Undo the most recent swipe (like) within 30 seconds
+// @route   POST /api/matches/undo
+// @access  Private
+export const undoLastSwipe = async (req, res) => {
+  try {
+    const currentUserId = req.userId;
+    const thirtySecondsAgo = new Date(Date.now() - 30000);
+
+    const recentMatch = await Match.findOne({
+      likerId: currentUserId,
+      createdAt: { $gte: thirtySecondsAgo },
+    }).sort({ createdAt: -1 });
+
+    if (!recentMatch) {
+      return res.status(400).json({
+        success: false,
+        message: "Nothing to undo",
+      });
+    }
+
+    const likedId = recentMatch.likedId;
+
+    // If it was a mutual match, revert the other side
+    if (recentMatch.isMatch) {
+      await Match.findOneAndUpdate(
+        { likerId: likedId, likedId: currentUserId },
+        { isMatch: false, matchedAt: null }
+      );
+    }
+
+    // Clean up notifications created by this like
+    await Notification.deleteMany({
+      fromUserId: currentUserId,
+      userId: likedId,
+      type: { $in: ["like", "match"] },
+    });
+
+    // Also remove match notification sent to the current user (mutual match case)
+    if (recentMatch.isMatch) {
+      await Notification.deleteMany({
+        fromUserId: likedId,
+        userId: currentUserId,
+        type: "match",
+      });
+    }
+
+    await Match.findByIdAndDelete(recentMatch._id);
+
+    res.status(200).json({
+      success: true,
+      message: "Last swipe undone",
+      undoneUserId: likedId,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error undoing last swipe",
+    });
+  }
+};
+
 // @desc    Get likes sent by current user
 // @route   GET /api/matches/likes-sent
 // @access  Private

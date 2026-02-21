@@ -5,6 +5,7 @@ import {
   getPotentialMatches,
   likeUser,
   dislikeUser,
+  undoLastSwipe,
   getMatches,
   getLikes,
   getLikesSent,
@@ -23,6 +24,9 @@ router.post("/like/:userId", writeLimiter, likeUser);
 
 // Dislike a user (remove like)
 router.delete("/like/:userId", writeLimiter, dislikeUser);
+
+// Undo last swipe (within 30 seconds)
+router.post("/undo", writeLimiter, undoLastSwipe);
 
 // Get user's matches
 router.get("/", apiLimiter, getMatches);

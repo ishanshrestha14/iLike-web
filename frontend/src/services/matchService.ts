@@ -143,6 +143,12 @@ export const dislikeUser = async (userId: string): Promise<MatchResponse> => {
   }
 };
 
+// Undo last swipe (within 30 seconds)
+export const undoLastSwipe = async (): Promise<{ success: boolean; message: string; undoneUserId?: string }> => {
+  const response = await api.post("/matches/undo");
+  return response.data;
+};
+
 // Get user's mutual matches
 export const getMatches = async (): Promise<MatchResult[]> => {
   try {
