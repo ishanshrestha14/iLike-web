@@ -7,15 +7,9 @@ import User from "../models/user.js";
 // Use shared authentication logic
 export const authenticateToken = async (req, res, next) => {
   try {
-    console.log("🔍 Verifying token..."); // Log the start of token verification
-
     // Use shared authentication utility
     await sharedAuth(req, res, next);
-
-    console.log("✅ Token verified, user:", req.user?.name);
   } catch (error) {
-    console.error("Authentication error:", error);
-
     if (error.name === "TokenExpiredError") {
       return res.status(401).json({
         success: false,

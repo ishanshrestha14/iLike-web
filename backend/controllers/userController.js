@@ -327,8 +327,8 @@ export const deleteAccount = async (req, res) => {
       return res.status(401).json({ success: false, message: "Incorrect password" });
     }
 
-    // Cascade cleanup
-    await Promise.all([
+    // Cascade cleanup — use allSettled so failures don't block the soft-delete
+    await Promise.allSettled([
       Notification.deleteMany({ $or: [{ userId }, { fromUserId: userId }] }),
       Block.deleteMany({ $or: [{ blockerId: userId }, { blockedId: userId }] }),
       Report.deleteMany({ reporterId: userId }),
@@ -380,12 +380,8 @@ export const forgotPassword = async (req, res) => {
       return res.json({ success: true, message: "If that email exists, a reset link has been sent" });
     }
 
-    // Generate raw token, store hashed version
+    // Generate raw token, send email first — only persist if send succeeds
     const rawToken = crypto.randomBytes(32).toString("hex");
-    user.resetPasswordToken = crypto.createHash("sha256").update(rawToken).digest("hex");
-    user.resetPasswordExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-    await user.save();
-
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
     const resetUrl = `${frontendUrl}/reset-password/${rawToken}`;
 
@@ -396,6 +392,11 @@ export const forgotPassword = async (req, res) => {
       subject: "Password Reset Request",
       text: `You requested a password reset for your iLike account.\n\nClick the link below to reset your password:\n${resetUrl}\n\nThis link expires in 1 hour.\n\nIf you did not request this, you can safely ignore this email.`,
     });
+
+    // Email sent successfully — now persist the hashed token
+    user.resetPasswordToken = crypto.createHash("sha256").update(rawToken).digest("hex");
+    user.resetPasswordExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    await user.save();
 
     res.json({ success: true, message: "If that email exists, a reset link has been sent" });
   } catch (error) {
