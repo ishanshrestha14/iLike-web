@@ -110,44 +110,30 @@ const connectDB = async () => {
   }
 };
 
-// Start server only if this file is run directly
+// Start server only when not in test environment
+if (process.env.NODE_ENV !== "test") {
   const PORT = process.env.PORT || 5000;
-  console.log("Starting server...");
 
   try {
-    console.log("Initializing server...");
-    // Initialize server and connect to DB
     await initServer();
-    console.log("Server initialized");
-
-    console.log("Connecting to database...");
     await connectDB();
-    console.log("Database connected");
 
-    // Create HTTP server for Socket.IO
     const server = createServer(app);
-    console.log("HTTP server created");
 
-    // Initialize Socket.IO
     try {
-      console.log("Initializing Socket.IO...");
       const socketServer = new SocketServer(server);
-      console.log("Socket.IO server initialized");
     } catch (error) {
       console.error("Socket.IO initialization failed:", error);
-      // Continue without Socket.IO for now
     }
 
-    // Start listening
-    console.log("Starting to listen on port", PORT);
     server.listen(PORT, "0.0.0.0", () => {
       console.log(`Server is running on port ${PORT}`);
-      console.log(`Socket.IO server is ready for real-time chat`);
     });
   } catch (error) {
     console.error("Failed to start server:", error);
     process.exit(1);
   }
+}
 
 export { app, connectDB, initServer };
 export default app;

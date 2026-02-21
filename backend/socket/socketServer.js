@@ -2,7 +2,7 @@ import { Server } from "socket.io";
 import { authenticateSocket } from "../utils/authUtils.js";
 import Chat from "../models/Chat.js";
 import Message from "../models/Message.js";
-import User from "../models/user.js";
+import User from "../models/User.js";
 import Profile from "../models/Profile.js";
 import { createNotification } from "../utils/notificationHelper.js";
 
@@ -54,8 +54,7 @@ class SocketServer {
           if (chat) {
             socket.join(`chat_${chatId}`);
           }
-        } catch (error) {
-        }
+        } catch (error) {}
       });
 
       // Handle leaving chat rooms
@@ -164,18 +163,22 @@ class SocketServer {
             if (pid !== socket.userId) {
               const unreadForParticipant = chat.unreadCounts.get(pid) || 0;
               if (unreadForParticipant === 1) {
-                Profile.findOne({ userId: socket.userId }).then((senderProfile) => {
-                  const senderName = senderProfile?.name || "Someone";
-                  const preview = content.trim().substring(0, 50) + (content.trim().length > 50 ? "..." : "");
-                  createNotification({
-                    userId: pid,
-                    type: "message",
-                    title: "New Message",
-                    message: `${senderName}: "${preview}"`,
-                    fromUserId: socket.userId,
-                    actionUrl: "/chat",
-                  }).catch(() => {});
-                }).catch(() => {});
+                Profile.findOne({ userId: socket.userId })
+                  .then((senderProfile) => {
+                    const senderName = senderProfile?.name || "Someone";
+                    const preview =
+                      content.trim().substring(0, 50) +
+                      (content.trim().length > 50 ? "..." : "");
+                    createNotification({
+                      userId: pid,
+                      type: "message",
+                      title: "New Message",
+                      message: `${senderName}: "${preview}"`,
+                      fromUserId: socket.userId,
+                      actionUrl: "/chat",
+                    }).catch(() => {});
+                  })
+                  .catch(() => {});
               }
             }
           });
@@ -238,7 +241,7 @@ class SocketServer {
                 },
               },
               $set: { status: "read" },
-            }
+            },
           );
 
           // Update chat unread count
@@ -290,7 +293,6 @@ class SocketServer {
       this.io.to(socketId).emit(event, data);
     }
   }
-
 }
 
 export const getSocketServer = () => instance;

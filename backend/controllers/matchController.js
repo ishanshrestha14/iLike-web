@@ -1,6 +1,6 @@
 import Match from "../models/Match.js";
 import Profile from "../models/Profile.js";
-import User from "../models/user.js";
+import User from "../models/User.js";
 import Block from "../models/Block.js";
 import { isValidObjectId } from "../utils/validate.js";
 import Notification from "../models/Notification.js";
@@ -103,7 +103,9 @@ export const likeUser = async (req, res) => {
     const likedId = req.params.userId;
 
     if (!isValidObjectId(likedId)) {
-      return res.status(400).json({ success: false, message: "Invalid user ID" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid user ID" });
     }
 
     // Validate that the user exists and has completed profile
@@ -224,7 +226,9 @@ export const dislikeUser = async (req, res) => {
     const likedId = req.params.userId;
 
     if (!isValidObjectId(likedId)) {
-      return res.status(400).json({ success: false, message: "Invalid user ID" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid user ID" });
     }
 
     // Remove the like
@@ -244,7 +248,7 @@ export const dislikeUser = async (req, res) => {
     if (deletedLike.isMatch) {
       await Match.findOneAndUpdate(
         { likerId: likedId, likedId: likerId },
-        { isMatch: false, matchedAt: null }
+        { isMatch: false, matchedAt: null },
       );
     }
 
@@ -441,7 +445,7 @@ export const undoLastSwipe = async (req, res) => {
     if (recentMatch.isMatch) {
       await Match.findOneAndUpdate(
         { likerId: likedId, likedId: currentUserId },
-        { isMatch: false, matchedAt: null }
+        { isMatch: false, matchedAt: null },
       );
     }
 
