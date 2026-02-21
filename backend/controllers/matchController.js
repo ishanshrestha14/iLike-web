@@ -3,6 +3,8 @@ import Profile from "../models/Profile.js";
 import User from "../models/user.js";
 import Block from "../models/Block.js";
 import { isValidObjectId } from "../utils/validate.js";
+import Notification from "../models/Notification.js";
+import { createNotification } from "../utils/notificationHelper.js";
 
 // @desc    Get potential matches for a user
 // @route   GET /api/matches/potential
@@ -156,6 +158,47 @@ export const likeUser = async (req, res) => {
         matchedAt: new Date(),
       });
       isMatch = true;
+    }
+
+    // Create notifications
+    const likerProfile = await Profile.findOne({ userId: likerId });
+    const likerName = likerProfile?.name || "Someone";
+
+    if (isMatch) {
+      // Remove the old "like" notification since it's now a match
+      await Notification.deleteOne({
+        userId: likedId,
+        fromUserId: likerId,
+        type: "like",
+      });
+
+      await createNotification({
+        userId: likedId,
+        type: "match",
+        title: "New Match!",
+        message: `You and ${likerName} liked each other! Start a conversation.`,
+        fromUserId: likerId,
+        actionUrl: "/matches",
+      });
+
+      const likedName = likedProfile?.name || "Someone";
+      await createNotification({
+        userId: likerId,
+        type: "match",
+        title: "New Match!",
+        message: `You and ${likedName} liked each other! Start a conversation.`,
+        fromUserId: likedId,
+        actionUrl: "/matches",
+      });
+    } else {
+      await createNotification({
+        userId: likedId,
+        type: "like",
+        title: "Someone liked you!",
+        message: `${likerName} liked your profile.`,
+        fromUserId: likerId,
+        actionUrl: "/explore",
+      });
     }
 
     res.status(200).json({

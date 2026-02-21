@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import MainLayout from "@/layouts/MainLayout";
 import {
   Bell,
@@ -12,101 +13,96 @@ import {
   Star,
 } from "lucide-react";
 import { toast } from "react-toastify";
+import * as notificationService from "@/services/notificationService";
+import type { Notification } from "@/services/notificationService";
+import { connect, onNewNotification } from "@/services/socketService";
 
-interface Notification {
-  id: string;
-  type: "match" | "like" | "message" | "system" | "superlike";
-  title: string;
-  message: string;
-  timestamp: string;
-  isRead: boolean;
-  avatar?: string;
-  actionUrl?: string;
-}
+const timeAgo = (date: string): string => {
+  const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "yesterday";
+  return `${days}d ago`;
+};
 
 const NotificationsPage = () => {
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: "1",
-      type: "match",
-      title: "New Match! 🎉",
-      message: "You and Sarah have liked each other! Start a conversation now.",
-      timestamp: "2 minutes ago",
-      isRead: false,
-      avatar:
-        "https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150",
-      actionUrl: "/chat/123",
-    },
-    {
-      id: "2",
-      type: "like",
-      title: "Someone liked you! ❤️",
-      message: "Alex liked your profile. Check them out!",
-      timestamp: "15 minutes ago",
-      isRead: false,
-      avatar:
-        "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150",
-      actionUrl: "/explore",
-    },
-    {
-      id: "3",
-      type: "superlike",
-      title: "Super Like! ⭐",
-      message:
-        "Emma sent you a Super Like! They really want to connect with you.",
-      timestamp: "1 hour ago",
-      isRead: true,
-      avatar:
-        "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150",
-      actionUrl: "/explore",
-    },
-    {
-      id: "4",
-      type: "message",
-      title: "New Message 💬",
-      message: "Sarah sent you a message: 'Hey! I loved your hiking photos!'",
-      timestamp: "2 hours ago",
-      isRead: true,
-      avatar:
-        "https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150",
-      actionUrl: "/chat/123",
-    },
-    {
-      id: "5",
-      type: "system",
-      title: "Profile Boost Active 🚀",
-      message:
-        "Your profile is being shown to more people for the next 30 minutes!",
-      timestamp: "3 hours ago",
-      isRead: true,
-    },
-    {
-      id: "6",
-      type: "match",
-      title: "New Match! 🎉",
-      message:
-        "You and Jessica have liked each other! Start a conversation now.",
-      timestamp: "1 day ago",
-      isRead: true,
-      avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150",
-      actionUrl: "/chat/456",
-    },
-    {
-      id: "7",
-      type: "like",
-      title: "Someone liked you! ❤️",
-      message: "Mike liked your profile. Check them out!",
-      timestamp: "2 days ago",
-      isRead: true,
-      avatar:
-        "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150",
-      actionUrl: "/explore",
-    },
-  ]);
-
+  const navigate = useNavigate();
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [filter, setFilter] = useState<
     "all" | "unread" | "matches" | "likes" | "messages"
   >("all");
+
+  // Load notifications on mount + subscribe to real-time events
+  useEffect(() => {
+    let ignore = false;
+
+    const load = async () => {
+      try {
+        const { notifications: data, hasMore: more } =
+          await notificationService.getNotifications();
+        if (!ignore) {
+          setNotifications(data);
+          setHasMore(more);
+        }
+      } catch {
+        toast.error("Failed to load notifications");
+      } finally {
+        if (!ignore) setLoading(false);
+      }
+    };
+
+    load();
+
+    try {
+      connect();
+    } catch {
+      return;
+    }
+
+    const unsub = onNewNotification((event) => {
+      setNotifications((prev) => [
+        {
+          id: event.id,
+          type: event.type as Notification["type"],
+          title: event.title,
+          message: event.message,
+          timestamp: event.timestamp,
+          isRead: false,
+          avatar: event.avatar,
+          actionUrl: event.actionUrl,
+        },
+        ...prev,
+      ]);
+    });
+
+    return () => {
+      ignore = true;
+      unsub();
+    };
+  }, []);
+
+  const loadMore = useCallback(async () => {
+    if (!hasMore || loadingMore || notifications.length === 0) return;
+    setLoadingMore(true);
+    try {
+      const oldest = notifications[notifications.length - 1].timestamp;
+      const { notifications: older, hasMore: more } =
+        await notificationService.getNotifications(oldest);
+      setNotifications((prev) => [...prev, ...older]);
+      setHasMore(more);
+    } catch {
+      toast.error("Failed to load more notifications");
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [hasMore, loadingMore, notifications]);
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -152,28 +148,54 @@ const NotificationsPage = () => {
     return true;
   });
 
-  const markAsRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((notif) =>
-        notif.id === id ? { ...notif, isRead: true } : notif
-      )
-    );
-    toast.success("Marked as read!");
+  const markAsRead = async (id: string) => {
+    try {
+      await notificationService.markAsRead(id);
+      setNotifications((prev) =>
+        prev.map((notif) =>
+          notif.id === id ? { ...notif, isRead: true } : notif
+        )
+      );
+    } catch {
+      toast.error("Failed to mark as read");
+    }
   };
 
-  const markAllAsRead = () => {
-    setNotifications((prev) =>
-      prev.map((notif) => ({ ...notif, isRead: true }))
-    );
-    toast.success("All notifications marked as read!");
+  const markAllAsRead = async () => {
+    try {
+      await notificationService.markAllAsRead();
+      setNotifications((prev) =>
+        prev.map((notif) => ({ ...notif, isRead: true }))
+      );
+      toast.success("All notifications marked as read!");
+    } catch {
+      toast.error("Failed to mark all as read");
+    }
   };
 
-  const deleteNotification = (id: string) => {
-    setNotifications((prev) => prev.filter((notif) => notif.id !== id));
-    toast.success("Notification deleted!");
+  const deleteNotification = async (id: string) => {
+    try {
+      await notificationService.deleteNotification(id);
+      setNotifications((prev) => prev.filter((notif) => notif.id !== id));
+    } catch {
+      toast.error("Failed to delete notification");
+    }
   };
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
+
+  if (loading) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center min-h-[50vh]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-pink-500 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading notifications...</p>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
@@ -195,7 +217,8 @@ const NotificationsPage = () => {
             <div className="flex items-center gap-2">
               <button
                 onClick={markAllAsRead}
-                className="flex items-center gap-2 px-4 py-2 text-sm bg-pink-500 text-white rounded-lg hover:bg-pink-600 transition-colors"
+                disabled={unreadCount === 0}
+                className="flex items-center gap-2 px-4 py-2 text-sm bg-pink-500 text-white rounded-lg hover:bg-pink-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Check className="w-4 h-4" />
                 Mark all read
@@ -239,7 +262,7 @@ const NotificationsPage = () => {
             ].map((tab) => (
               <button
                 key={tab.key}
-                onClick={() => setFilter(tab.key as "all" | "unread" | "matches" | "likes" | "messages")}
+                onClick={() => setFilter(tab.key as typeof filter)}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   filter === tab.key
                     ? "bg-pink-500 text-white"
@@ -287,12 +310,16 @@ const NotificationsPage = () => {
               >
                 <div className="flex items-start gap-4">
                   {/* Avatar */}
-                  {notification.avatar && (
+                  {notification.avatar ? (
                     <img
                       src={notification.avatar}
                       alt="User"
                       className="w-12 h-12 rounded-full object-cover flex-shrink-0"
                     />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-r from-pink-400 to-red-400 flex items-center justify-center text-white flex-shrink-0">
+                      {getNotificationIcon(notification.type)}
+                    </div>
                   )}
 
                   {/* Content */}
@@ -314,14 +341,12 @@ const NotificationsPage = () => {
                         <div className="flex items-center gap-4 text-xs text-gray-500">
                           <span className="flex items-center gap-1">
                             <Clock className="w-3 h-3" />
-                            {notification.timestamp}
+                            {timeAgo(notification.timestamp)}
                           </span>
                           {notification.actionUrl && (
                             <button
                               onClick={() =>
-                                toast.info(
-                                  `Navigate to ${notification.actionUrl}`
-                                )
+                                navigate(notification.actionUrl!)
                               }
                               className="text-pink-500 hover:text-pink-600 font-medium"
                             >
@@ -357,6 +382,19 @@ const NotificationsPage = () => {
             ))
           )}
         </div>
+
+        {/* Load More */}
+        {hasMore && (
+          <div className="text-center py-6">
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="px-6 py-2 text-sm text-pink-500 hover:text-pink-600 font-medium disabled:opacity-50"
+            >
+              {loadingMore ? "Loading..." : "Load more notifications"}
+            </button>
+          </div>
+        )}
 
         {/* Quick Stats */}
         {notifications.length > 0 && (

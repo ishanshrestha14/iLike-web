@@ -134,3 +134,28 @@ export const onMessageError = (cb: (err: { message: string }) => void) => {
   socket?.on("message_error", cb);
   return () => { socket?.off("message_error", cb); };
 };
+
+export interface NotificationEvent {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  timestamp: string;
+  isRead: boolean;
+  avatar?: string;
+  actionUrl?: string;
+}
+
+export interface NotificationCountEvent {
+  count: number;
+}
+
+export const onNewNotification = (cb: (event: NotificationEvent) => void) => {
+  socket?.on("new_notification", cb);
+  return () => { socket?.off("new_notification", cb); };
+};
+
+export const onNotificationCount = (cb: (event: NotificationCountEvent) => void) => {
+  socket?.on("notification_count", cb);
+  return () => { socket?.off("notification_count", cb); };
+};

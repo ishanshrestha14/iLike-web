@@ -3,9 +3,14 @@ import { authenticateSocket } from "../utils/authUtils.js";
 import Chat from "../models/Chat.js";
 import Message from "../models/Message.js";
 import User from "../models/user.js";
+import Profile from "../models/Profile.js";
+import { createNotification } from "../utils/notificationHelper.js";
+
+let instance = null;
 
 class SocketServer {
   constructor(server) {
+    instance = this;
     this.io = new Server(server, {
       cors: {
         origin: process.env.FRONTEND_URL || "http://localhost:3000",
@@ -152,6 +157,28 @@ class SocketServer {
           };
 
           this.io.to(`chat_${chatId}`).emit("chat_updated", chatUpdate);
+
+          // Create notification for participants with first unread message
+          chat.participants.forEach((participantId) => {
+            const pid = participantId.toString();
+            if (pid !== socket.userId) {
+              const unreadForParticipant = chat.unreadCounts.get(pid) || 0;
+              if (unreadForParticipant === 1) {
+                Profile.findOne({ userId: socket.userId }).then((senderProfile) => {
+                  const senderName = senderProfile?.name || "Someone";
+                  const preview = content.trim().substring(0, 50) + (content.trim().length > 50 ? "..." : "");
+                  createNotification({
+                    userId: pid,
+                    type: "message",
+                    title: "New Message",
+                    message: `${senderName}: "${preview}"`,
+                    fromUserId: socket.userId,
+                    actionUrl: "/chat",
+                  }).catch(() => {});
+                }).catch(() => {});
+              }
+            }
+          });
         } catch (error) {
           socket.emit("message_error", { message: "Failed to send message" });
         }
@@ -231,5 +258,7 @@ class SocketServer {
   }
 
 }
+
+export const getSocketServer = () => instance;
 
 export default SocketServer;

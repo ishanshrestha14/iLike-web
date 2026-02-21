@@ -13,6 +13,8 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { getUnreadCount } from "@/services/notificationService";
+import { connect, onNotificationCount } from "@/services/socketService";
 
 interface NavbarProps {
   onLogout: () => void;
@@ -20,7 +22,7 @@ interface NavbarProps {
 
 const Navbar: React.FC<NavbarProps> = ({ onLogout }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [notifications] = useState(3); // Mock notification count
+  const [notificationCount, setNotificationCount] = useState(0);
   const location = useLocation();
   const { user } = useAuth();
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -40,6 +42,22 @@ const Navbar: React.FC<NavbarProps> = ({ onLogout }) => {
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
+  }, []);
+
+  // Fetch real unread count + keep it live via socket
+  useEffect(() => {
+    getUnreadCount()
+      .then(setNotificationCount)
+      .catch(() => {});
+
+    try {
+      connect();
+    } catch {
+      return;
+    }
+
+    const unsub = onNotificationCount(({ count }) => setNotificationCount(count));
+    return () => unsub();
   }, []);
 
   const navLinks = [
@@ -106,9 +124,9 @@ const Navbar: React.FC<NavbarProps> = ({ onLogout }) => {
                 className="inline-block p-2 text-gray-600 hover:text-pink-600 hover:bg-pink-50 rounded-full transition-all relative"
               >
                 <Bell className="w-5 h-5" />
-                {notifications > 0 && (
+                {notificationCount > 0 && (
                   <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                    {notifications > 9 ? "9+" : notifications}
+                    {notificationCount > 9 ? "9+" : notificationCount}
                   </span>
                 )}
               </Link>
