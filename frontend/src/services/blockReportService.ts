@@ -1,5 +1,17 @@
 import api from "./api";
 
+export interface BlockedUser {
+  userId: string;
+  name: string;
+  profilePicture: string | null;
+  blockedAt: string;
+}
+
+export const getBlockedUsers = async (): Promise<BlockedUser[]> => {
+  const { data } = await api.get<{ success: boolean; data: BlockedUser[] }>("/users/block");
+  return data.data;
+};
+
 export const blockUser = async (userId: string): Promise<void> => {
   await api.post(`/users/block/${userId}`);
 };

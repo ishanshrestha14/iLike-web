@@ -3,7 +3,46 @@ import Report from "../models/Report.js";
 import Match from "../models/Match.js";
 import Chat from "../models/Chat.js";
 import User from "../models/user.js";
+import Profile from "../models/Profile.js";
 import { isValidObjectId } from "../utils/validate.js";
+
+// @desc    Get blocked users list
+// @route   GET /api/users/block
+// @access  Private
+export const getBlockedUsers = async (req, res) => {
+  try {
+    const blocks = await Block.find({ blockerId: req.userId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const blockedIds = blocks.map((b) => b.blockedId);
+
+    const [users, profiles] = await Promise.all([
+      User.find({ _id: { $in: blockedIds } }).select("name").lean(),
+      Profile.find({ userId: { $in: blockedIds } })
+        .select("userId profilePictureUrl photoUrls")
+        .lean(),
+    ]);
+
+    const userMap = new Map(users.map((u) => [u._id.toString(), u]));
+    const profileMap = new Map(profiles.map((p) => [p.userId.toString(), p]));
+
+    const blockedUsers = blocks.map((block) => {
+      const user = userMap.get(block.blockedId.toString());
+      const profile = profileMap.get(block.blockedId.toString());
+      return {
+        userId: block.blockedId,
+        name: user?.name || "Unknown User",
+        profilePicture: profile?.profilePictureUrl || profile?.photoUrls?.[0] || null,
+        blockedAt: block.createdAt,
+      };
+    });
+
+    res.json({ success: true, data: blockedUsers });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Failed to get blocked users" });
+  }
+};
 
 // @desc    Block a user
 // @route   POST /api/users/block/:id

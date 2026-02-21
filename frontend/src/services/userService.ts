@@ -151,6 +151,13 @@ export const authService = {
     return response.data;
   },
 
+  // Delete account
+  async deleteAccount(password: string): Promise<void> {
+    await api.delete("/users/me", { data: { password } });
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+  },
+
   // Get all users (for admin)
   async getAllUsers(): Promise<User[]> {
     const response = await api.get<User[]>("/users");

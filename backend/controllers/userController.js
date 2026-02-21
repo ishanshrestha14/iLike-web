@@ -2,6 +2,13 @@ import crypto from "crypto";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import User from "../models/user.js";
+import Profile from "../models/Profile.js";
+import Match from "../models/Match.js";
+import Chat from "../models/Chat.js";
+import Settings from "../models/Settings.js";
+import Block from "../models/Block.js";
+import Report from "../models/Report.js";
+import Notification from "../models/Notification.js";
 
 /** Generate a short-lived access token (15 min) */
 export const generateAccessToken = (user) => {
@@ -106,7 +113,7 @@ export const login = async (req, res) => {
   try {
     const user = await User.findOne({ email });
 
-    if (!user) {
+    if (!user || user.deletedAccount) {
       return res.status(401).json({
         success: false,
         message: "Invalid credentials",
@@ -294,6 +301,64 @@ export const logoutUser = async (req, res) => {
     res.json({ success: true, message: "Logged out" });
   } catch (error) {
     res.status(500).json({ success: false, message: "Failed to logout" });
+  }
+};
+
+// @desc    Delete account (soft-delete with cascade cleanup)
+// @route   DELETE /api/users/me
+// @access  Private
+export const deleteAccount = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({ success: false, message: "Password is required" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: "Incorrect password" });
+    }
+
+    // Cascade cleanup
+    await Promise.all([
+      Notification.deleteMany({ $or: [{ userId }, { fromUserId: userId }] }),
+      Block.deleteMany({ $or: [{ blockerId: userId }, { blockedId: userId }] }),
+      Report.deleteMany({ reporterId: userId }),
+      Match.deleteMany({ $or: [{ likerId: userId }, { likedId: userId }] }),
+      Chat.updateMany({ participants: userId }, { $set: { isActive: false } }),
+      Settings.deleteOne({ userId }),
+      Profile.deleteOne({ userId }),
+      User.updateMany(
+        { $or: [{ likes: userId }, { followers: userId }] },
+        { $pull: { likes: userId, followers: userId } }
+      ),
+    ]);
+
+    // Soft-delete user: mark as deleted, clear sensitive data, keep as tombstone
+    user.deletedAccount = true;
+    user.name = "Deleted Account";
+    user.email = `deleted_${userId}@deleted.local`;
+    user.password = await bcrypt.hash(crypto.randomBytes(32).toString("hex"), 10);
+    user.refreshToken = null;
+    user.previousRefreshToken = null;
+    user.bio = "";
+    user.avatar = "";
+    user.likes = [];
+    user.followers = [];
+    user.hasCompletedProfile = false;
+    await user.save();
+
+    res.clearCookie("refreshToken", { path: "/" });
+    res.json({ success: true, message: "Account deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Failed to delete account" });
   }
 };
 

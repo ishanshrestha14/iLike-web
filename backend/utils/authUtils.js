@@ -16,7 +16,7 @@ export const verifyToken = async (token) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.id);
 
-    if (!user) {
+    if (!user || user.deletedAccount) {
       throw new Error("User not found");
     }
 

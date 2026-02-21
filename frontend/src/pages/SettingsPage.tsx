@@ -15,6 +15,9 @@ import {
   Download,
   HelpCircle,
   Settings as SettingsIcon,
+  ShieldBan,
+  UserX,
+  X,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { useAuth } from "@/context/AuthContext";
@@ -27,6 +30,13 @@ import {
   type AppSettings,
 } from "@/services/settingsService";
 import { getProfile, updateProfile } from "@/services/profileService";
+import {
+  getBlockedUsers,
+  unblockUser,
+  type BlockedUser,
+} from "@/services/blockReportService";
+import { authService } from "@/services/userService";
+import { SERVER_BASE_URL } from "@/services/api";
 
 // Keys grouped by storage backend
 const SERVER_KEYS = new Set([
@@ -71,6 +81,53 @@ const SettingsPage = () => {
     maxDistance: 50,
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
+  const [loadingBlocked, setLoadingBlocked] = useState(true);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  const loadBlockedUsers = useCallback(async () => {
+    try {
+      const users = await getBlockedUsers();
+      setBlockedUsers(users);
+    } catch {
+      // Silently fail — section will show empty
+    } finally {
+      setLoadingBlocked(false);
+    }
+  }, []);
+
+  const handleUnblock = async (userId: string, name: string) => {
+    try {
+      await unblockUser(userId);
+      setBlockedUsers((prev) => prev.filter((u) => u.userId !== userId));
+      toast.success(`${name} has been unblocked`);
+    } catch {
+      toast.error("Failed to unblock user");
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!deletePassword) {
+      toast.error("Please enter your password");
+      return;
+    }
+    setDeleting(true);
+    try {
+      await authService.deleteAccount(deletePassword);
+      logout();
+    } catch (error: unknown) {
+      const msg =
+        error && typeof error === "object" && "response" in error
+          ? ((error as { response: { data?: { message?: string } } }).response
+              ?.data?.message ?? "Failed to delete account")
+          : "Failed to delete account";
+      toast.error(msg);
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const loadSettings = useCallback(async () => {
     try {
@@ -114,7 +171,8 @@ const SettingsPage = () => {
 
   useEffect(() => {
     loadSettings();
-  }, [loadSettings]);
+    loadBlockedUsers();
+  }, [loadSettings, loadBlockedUsers]);
 
   const handleSettingChange = async (
     key: string,
@@ -158,10 +216,6 @@ const SettingsPage = () => {
 
   const handleLogout = () => {
     logout();
-  };
-
-  const handleDeleteAccount = () => {
-    toast.warning("Account deletion requires confirmation!");
   };
 
   const SettingItem = ({
@@ -385,6 +439,68 @@ const SettingsPage = () => {
               </div>
             </div>
 
+            {/* Blocked Users */}
+            <div className="bg-white rounded-2xl shadow-lg p-6">
+              <div className="flex items-center gap-2 mb-6">
+                <ShieldBan className="w-5 h-5 text-pink-500" />
+                <h2 className="text-xl font-semibold text-gray-800">
+                  Blocked Users
+                </h2>
+              </div>
+
+              {loadingBlocked ? (
+                <p className="text-sm text-gray-500">Loading...</p>
+              ) : blockedUsers.length === 0 ? (
+                <p className="text-sm text-gray-500">
+                  You haven't blocked anyone
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {blockedUsers.map((blocked) => (
+                    <div
+                      key={blocked.userId}
+                      className="flex items-center justify-between p-3 rounded-xl border border-gray-200 bg-white"
+                    >
+                      <div className="flex items-center gap-3">
+                        {blocked.profilePicture ? (
+                          <img
+                            src={
+                              blocked.profilePicture.startsWith("http")
+                                ? blocked.profilePicture
+                                : `${SERVER_BASE_URL}${blocked.profilePicture}`
+                            }
+                            alt={blocked.name}
+                            className="w-10 h-10 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500">
+                            <UserX className="w-5 h-5" />
+                          </div>
+                        )}
+                        <div>
+                          <p className="font-medium text-gray-800">
+                            {blocked.name}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            Blocked{" "}
+                            {new Date(blocked.blockedAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() =>
+                          handleUnblock(blocked.userId, blocked.name)
+                        }
+                        className="px-3 py-1.5 text-sm font-medium text-pink-600 border border-pink-200 rounded-lg hover:bg-pink-50 transition-colors"
+                      >
+                        Unblock
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Discovery Settings */}
             <div className="bg-white rounded-2xl shadow-lg p-6">
               <div className="flex items-center gap-2 mb-6">
@@ -580,7 +696,7 @@ const SettingsPage = () => {
                 </button>
 
                 <button
-                  onClick={handleDeleteAccount}
+                  onClick={() => setShowDeleteModal(true)}
                   className="w-full flex items-center gap-3 p-3 text-left text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                 >
                   <Trash2 className="w-5 h-5 text-red-500" />
@@ -591,6 +707,64 @@ const SettingsPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Delete Account Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-red-600">
+                Delete Account
+              </h3>
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setDeletePassword("");
+                }}
+                className="p-1 text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-sm text-gray-600 mb-4">
+              This action is permanent. All your matches, chats, and profile
+              data will be removed. Your messages will be preserved anonymously
+              for other users.
+            </p>
+
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Enter your password to confirm
+            </label>
+            <input
+              type="password"
+              value={deletePassword}
+              onChange={(e) => setDeletePassword(e.target.value)}
+              placeholder="Your password"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-red-500"
+            />
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setDeletePassword("");
+                }}
+                className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleting || !deletePassword}
+                className="flex-1 bg-red-500 text-white py-2 px-4 rounded-xl font-medium hover:bg-red-600 transition-colors disabled:opacity-50"
+              >
+                {deleting ? "Deleting..." : "Delete Forever"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </MainLayout>
   );
 };

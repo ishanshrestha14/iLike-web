@@ -10,9 +10,10 @@ import {
   getCurrentUser,
   updateProfile,
   getAllUsers,
+  deleteAccount,
 } from '../controllers/userController.js';
 import { authenticateToken } from '../middleware/auth.js';
-import { blockUser, unblockUser, reportUser } from '../controllers/blockReportController.js';
+import { getBlockedUsers, blockUser, unblockUser, reportUser } from '../controllers/blockReportController.js';
 
 const router = express.Router();
 
@@ -62,6 +63,7 @@ router.post('/logout', logoutUser);
 // Protected routes (requires valid token to access)
 router.get('/', authenticateToken, getAllUsers);
 router.get('/me', authenticateToken, getCurrentUser);
+router.delete('/me', authenticateToken, deleteAccount);
 
 // Profile routes
 router.route('/profile/:id')
@@ -69,6 +71,7 @@ router.route('/profile/:id')
   .put(authenticateToken, updateProfile);
 
 // Block/Report routes
+router.get('/block', authenticateToken, getBlockedUsers);
 router.post('/block/:id', authenticateToken, blockUser);
 router.delete('/block/:id', authenticateToken, unblockUser);
 router.post('/report/:id', authenticateToken, reportUser);
