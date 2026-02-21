@@ -36,15 +36,20 @@ api.interceptors.request.use(
 
 // Track whether we're already refreshing to avoid infinite loops
 let isRefreshing = false;
-let refreshSubscribers: ((token: string) => void)[] = [];
+let refreshSubscribers: { resolve: (token: string) => void; reject: (err: unknown) => void }[] = [];
 
 const onRefreshed = (token: string) => {
-  refreshSubscribers.forEach((cb) => cb(token));
+  refreshSubscribers.forEach((sub) => sub.resolve(token));
   refreshSubscribers = [];
 };
 
-const addRefreshSubscriber = (cb: (token: string) => void) => {
-  refreshSubscribers.push(cb);
+const onRefreshFailed = (err: unknown) => {
+  refreshSubscribers.forEach((sub) => sub.reject(err));
+  refreshSubscribers = [];
+};
+
+const addRefreshSubscriber = (resolve: (token: string) => void, reject: (err: unknown) => void) => {
+  refreshSubscribers.push({ resolve, reject });
 };
 
 // Add a response interceptor to silently refresh on 401
@@ -64,12 +69,15 @@ api.interceptors.response.use(
       !originalRequest.url?.includes('/users/reset-password')
     ) {
       if (isRefreshing) {
-        // Queue this request until refresh completes
-        return new Promise((resolve) => {
-          addRefreshSubscriber((token: string) => {
-            originalRequest.headers.Authorization = `Bearer ${token}`;
-            resolve(api(originalRequest));
-          });
+        // Queue this request until refresh completes or fails
+        return new Promise((resolve, reject) => {
+          addRefreshSubscriber(
+            (token: string) => {
+              originalRequest.headers.Authorization = `Bearer ${token}`;
+              resolve(api(originalRequest));
+            },
+            (err: unknown) => reject(err)
+          );
         });
       }
 
@@ -94,7 +102,8 @@ api.interceptors.response.use(
 
         return api(originalRequest);
       } catch (refreshError) {
-        // Refresh failed — clear token and redirect to login
+        // Refresh failed — reject all queued requests, clear token, redirect
+        onRefreshFailed(refreshError);
         setAccessToken(null);
         localStorage.removeItem('user');
         window.location.href = '/auth';
