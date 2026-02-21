@@ -1,6 +1,10 @@
 import mongoose from "mongoose";
 import { MongoMemoryServer } from "mongodb-memory-server";
 
+// Set test environment variables before any module imports resolve
+process.env.NODE_ENV = "test";
+process.env.JWT_SECRET = "test-jwt-secret-for-vitest";
+
 let mongoServer;
 
 beforeAll(async () => {
