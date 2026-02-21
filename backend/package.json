@@ -30,6 +30,7 @@
     "mongoose": "^8.14.1",
     "multer": "^2.0.1",
     "multer-storage-cloudinary": "^4.0.0",
+    "resend": "^6.9.2",
     "socket.io": "^4.8.1",
     "uuid": "^11.1.0"
   },

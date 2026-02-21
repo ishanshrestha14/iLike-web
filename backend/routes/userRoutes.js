@@ -11,6 +11,8 @@ import {
   updateProfile,
   getAllUsers,
   deleteAccount,
+  forgotPassword,
+  resetPassword,
 } from '../controllers/userController.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { getBlockedUsers, blockUser, unblockUser, reportUser } from '../controllers/blockReportController.js';
@@ -59,6 +61,8 @@ router.post('/login', loginLimiter, [
 
 router.post('/refresh', refreshAccessToken);
 router.post('/logout', logoutUser);
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password/:token', resetPassword);
 
 // Protected routes (requires valid token to access)
 router.get('/', authenticateToken, getAllUsers);

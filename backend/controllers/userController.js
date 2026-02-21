@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import { Resend } from "resend";
 import User from "../models/user.js";
 import Profile from "../models/Profile.js";
 import Match from "../models/Match.js";
@@ -359,6 +360,96 @@ export const deleteAccount = async (req, res) => {
     res.json({ success: true, message: "Account deleted successfully" });
   } catch (error) {
     res.status(500).json({ success: false, message: "Failed to delete account" });
+  }
+};
+
+// @desc    Request password reset email
+// @route   POST /api/users/forgot-password
+// @access  Public
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ success: false, message: "Email is required" });
+    }
+
+    const user = await User.findOne({ email, deletedAccount: { $ne: true } });
+
+    // Always respond the same way — don't reveal whether email exists
+    if (!user) {
+      return res.json({ success: true, message: "If that email exists, a reset link has been sent" });
+    }
+
+    // Generate raw token, store hashed version
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    user.resetPasswordToken = crypto.createHash("sha256").update(rawToken).digest("hex");
+    user.resetPasswordExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    await user.save();
+
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+    const resetUrl = `${frontendUrl}/reset-password/${rawToken}`;
+
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    await resend.emails.send({
+      from: "iLike <noreply@ilike.app>",
+      to: user.email,
+      subject: "Password Reset Request",
+      text: `You requested a password reset for your iLike account.\n\nClick the link below to reset your password:\n${resetUrl}\n\nThis link expires in 1 hour.\n\nIf you did not request this, you can safely ignore this email.`,
+    });
+
+    res.json({ success: true, message: "If that email exists, a reset link has been sent" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Failed to send reset email" });
+  }
+};
+
+// @desc    Reset password using token
+// @route   POST /api/users/reset-password/:token
+// @access  Public
+export const resetPassword = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    if (!password || password.length < 8) {
+      return res.status(400).json({ success: false, message: "Password must be at least 8 characters" });
+    }
+
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpires: { $gt: new Date() },
+      deletedAccount: { $ne: true },
+    });
+
+    if (!user) {
+      return res.status(400).json({ success: false, message: "Invalid or expired reset link" });
+    }
+
+    user.password = await bcrypt.hash(password, 10);
+    user.resetPasswordToken = null;
+    user.resetPasswordExpires = null;
+    // Invalidate all existing sessions
+    user.refreshToken = null;
+    user.previousRefreshToken = null;
+    await user.save();
+
+    // Issue fresh tokens so user lands on /home immediately
+    const accessToken = generateAccessToken(user);
+    const refreshToken = await generateRefreshToken(user);
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: "/",
+    });
+
+    res.json({ success: true, token: accessToken, message: "Password reset successful" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Failed to reset password" });
   }
 };
 
