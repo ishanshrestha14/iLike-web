@@ -1,130 +1,168 @@
+import { describe, it, expect } from "vitest";
 import request from "supertest";
-import mongoose from "mongoose";
 import app from "../../server.js";
 import User from "../../models/user.js";
-import { generateToken } from "../../controllers/userController.js";
+import { createUser, signToken } from "../helpers.js";
 
-describe("User Controller", () => {
-  let testUser;
-  const userCredentials = {
-    email: "test@example.com",
-    password: "password123",
-    name: "Test User",
-  };
+// setup.js (loaded via vitest setupFiles) handles MongoDB Memory Server lifecycle.
+// beforeEach in setup.js clears all collections between tests.
 
-  beforeAll(async () => {
-    await mongoose.connect(
-      process.env.MONGODB_URI_TEST || "mongodb://localhost:27017/ilike-test"
-    );
+describe("POST /api/users/register", () => {
+  it("returns 201 with user data and sets refreshToken cookie for valid payload", async () => {
+    const res = await request(app)
+      .post("/api/users/register")
+      .send({ name: "Alice", email: "alice@test.com", password: "Password123" });
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.token).toBeTruthy();
+    expect(res.body.user.email).toBe("alice@test.com");
+    expect(res.body.user).not.toHaveProperty("password");
+
+    const cookies = res.headers["set-cookie"];
+    expect(Array.isArray(cookies)).toBe(true);
+    expect(cookies.some((c) => c.startsWith("refreshToken="))).toBe(true);
   });
 
-  afterAll(async () => {
-    await mongoose.connection.dropDatabase();
-    await mongoose.connection.close();
+  it("returns 400 for duplicate email", async () => {
+    await createUser({ email: "dup@test.com" });
+
+    const res = await request(app)
+      .post("/api/users/register")
+      .send({ name: "Bob", email: "dup@test.com", password: "Password123" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
   });
 
-  beforeEach(async () => {
-    await User.deleteMany({});
+  it("returns 400 when name is missing", async () => {
+    const res = await request(app)
+      .post("/api/users/register")
+      .send({ email: "noname@test.com", password: "Password123" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.errors).toBeDefined(); // express-validator format
   });
 
-  describe("POST /api/users/register", () => {
-    it("should register a new user", async () => {
-      const res = await request(app)
-        .post("/api/users/register")
-        .send(userCredentials)
-        .expect(201);
+  it("returns 400 for an invalid email format", async () => {
+    const res = await request(app)
+      .post("/api/users/register")
+      .send({ name: "Charlie", email: "not-an-email", password: "Password123" });
 
-      expect(res.body).toHaveProperty("token");
-      expect(res.body.user.email).toBe(userCredentials.email);
-      expect(res.body.user.name).toBe(userCredentials.name);
-      expect(res.body.user).not.toHaveProperty("password");
-    });
-
-    it("should not register user with existing email", async () => {
-      await User.create(userCredentials);
-
-      const res = await request(app)
-        .post("/api/users/register")
-        .send(userCredentials)
-        .expect(400);
-
-      expect(res.body.message).toMatch(/email already exists/i);
-    });
-
-    it("should validate required fields", async () => {
-      const res = await request(app)
-        .post("/api/users/register")
-        .send({})
-        .expect(400);
-
-      expect(res.body.message).toMatch(/required/i);
-    });
+    expect(res.status).toBe(400);
+    expect(res.body.errors).toBeDefined();
   });
 
-  describe("POST /api/users/login", () => {
-    beforeEach(async () => {
-      testUser = await User.create(userCredentials);
-    });
+  it("returns 400 for a password shorter than 8 characters", async () => {
+    const res = await request(app)
+      .post("/api/users/register")
+      .send({ name: "Dave", email: "dave@test.com", password: "abc" });
 
-    it("should login with valid credentials", async () => {
-      const res = await request(app)
-        .post("/api/users/login")
-        .send({
-          email: userCredentials.email,
-          password: userCredentials.password,
-        })
-        .expect(200);
+    expect(res.status).toBe(400);
+    expect(res.body.errors).toBeDefined();
+  });
+});
 
-      expect(res.body).toHaveProperty("token");
-      expect(res.body.user.email).toBe(userCredentials.email);
-    });
+describe("POST /api/users/login", () => {
+  it("returns 200 with token and sets refreshToken cookie for valid credentials", async () => {
+    await createUser({ email: "login@test.com" }); // default plainPassword: 'Password123'
 
-    it("should not login with wrong password", async () => {
-      const res = await request(app)
-        .post("/api/users/login")
-        .send({
-          email: userCredentials.email,
-          password: "wrongpassword",
-        })
-        .expect(401);
+    const res = await request(app)
+      .post("/api/users/login")
+      .send({ email: "login@test.com", password: "Password123" });
 
-      expect(res.body.message).toMatch(/invalid credentials/i);
-    });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.token).toBeTruthy();
 
-    it("should not login non-existent user", async () => {
-      const res = await request(app)
-        .post("/api/users/login")
-        .send({
-          email: "nonexistent@example.com",
-          password: "password123",
-        })
-        .expect(401);
-
-      expect(res.body.message).toMatch(/invalid credentials/i);
-    });
+    const cookies = res.headers["set-cookie"];
+    expect(Array.isArray(cookies)).toBe(true);
+    expect(cookies.some((c) => c.startsWith("refreshToken="))).toBe(true);
   });
 
-  describe("GET /api/users/me", () => {
-    beforeEach(async () => {
-      testUser = await User.create(userCredentials);
-    });
+  it("returns 401 for a wrong password", async () => {
+    await createUser({ email: "wrongpw@test.com" });
 
-    it("should get authenticated user profile", async () => {
-      const token = generateToken(testUser._id);
+    const res = await request(app)
+      .post("/api/users/login")
+      .send({ email: "wrongpw@test.com", password: "WrongPassword99" });
 
-      const res = await request(app)
-        .get("/api/users/me")
-        .set("Authorization", `Bearer ${token}`)
-        .expect(200);
+    expect(res.status).toBe(401);
+    expect(res.body.success).toBe(false);
+  });
 
-      expect(res.body.email).toBe(userCredentials.email);
-      expect(res.body.name).toBe(userCredentials.name);
-    });
+  it("returns 401 for a non-existent email", async () => {
+    const res = await request(app)
+      .post("/api/users/login")
+      .send({ email: "ghost@test.com", password: "Password123" });
 
-    it("should not access profile without token", async () => {
-      const res = await request(app).get("/api/users/me").expect(401);
+    expect(res.status).toBe(401);
+    expect(res.body.success).toBe(false);
+  });
 
-      expect(res.body.message).toMatch(/no token/i);
-    });
+  it("returns 401 for a deleted account", async () => {
+    const user = await createUser({ email: "deleted@test.com" });
+    await User.findByIdAndUpdate(user._id, { deletedAccount: true });
+
+    const res = await request(app)
+      .post("/api/users/login")
+      .send({ email: "deleted@test.com", password: "Password123" });
+
+    expect(res.status).toBe(401);
+    expect(res.body.success).toBe(false);
+  });
+});
+
+describe("DELETE /api/users/me", () => {
+  it("soft-deletes the account when the correct password is provided", async () => {
+    const user = await createUser({ email: "todelete@test.com" });
+    const token = signToken(user._id);
+
+    const res = await request(app)
+      .delete("/api/users/me")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ password: "Password123" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    // Verify tombstone in DB
+    const tombstone = await User.findById(user._id);
+    expect(tombstone.deletedAccount).toBe(true);
+    expect(tombstone.name).toBe("Deleted Account");
+  });
+
+  it("returns 400 when the password field is missing from the request body", async () => {
+    const user = await createUser({ email: "nopw@test.com" });
+    const token = signToken(user._id);
+
+    const res = await request(app)
+      .delete("/api/users/me")
+      .set("Authorization", `Bearer ${token}`)
+      .send({});
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+  });
+
+  it("returns 401 for a wrong password", async () => {
+    const user = await createUser({ email: "badpw@test.com" });
+    const token = signToken(user._id);
+
+    const res = await request(app)
+      .delete("/api/users/me")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ password: "WrongPassword99" });
+
+    expect(res.status).toBe(401);
+    expect(res.body.success).toBe(false);
+  });
+
+  it("returns 401 when no auth token is provided", async () => {
+    const res = await request(app)
+      .delete("/api/users/me")
+      .send({ password: "Password123" });
+
+    expect(res.status).toBe(401);
   });
 });

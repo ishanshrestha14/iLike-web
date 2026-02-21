@@ -1,90 +1,80 @@
-import { vi } from "vitest";
-import jwt from "jsonwebtoken";
-import { auth } from "../../middleware/auth.js";
-import User from "../../models/user.js";
+import { describe, it, expect } from "vitest";
+import express from "express";
+import request from "supertest";
+import { authenticateToken } from "../../middleware/auth.js";
+import User from "../../models/User.js";
+import { createUser, signToken, expiredToken } from "../helpers.js";
 
-vi.mock("jsonwebtoken");
-vi.mock("../../models/user.js");
+// Minimal test app — avoids importing the full server (and its DB/listen side effects)
+const app = express();
+app.use(express.json());
+app.get("/protected", authenticateToken, (req, res) => {
+  res.json({ userId: req.userId, userName: req.user.name });
+});
 
-describe("Auth Middleware", () => {
-  let mockReq;
-  let mockRes;
-  let mockNext;
+describe("authenticateToken middleware", () => {
+  it("calls next() and sets req.userId + req.user for a valid token", async () => {
+    const user = await createUser({ name: "Alice" });
+    const token = signToken(user._id);
 
-  beforeEach(() => {
-    mockReq = {
-      header: vi.fn(),
-    };
-    mockRes = {
-      status: vi.fn().mockReturnThis(),
-      json: vi.fn(),
-    };
-    mockNext = vi.fn();
+    const res = await request(app)
+      .get("/protected")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.userId).toBe(user._id.toString());
+    expect(res.body.userName).toBe("Alice");
   });
 
-  it("should add user to request object when valid token is provided", async () => {
-    const mockUser = {
-      _id: "user123",
-      name: "Test User",
-      email: "test@example.com",
-    };
-
-    mockReq.header.mockReturnValue("Bearer validtoken");
-    jwt.verify.mockReturnValue({ id: "user123" });
-    User.findById.mockResolvedValue(mockUser);
-
-    await auth(mockReq, mockRes, mockNext);
-
-    expect(mockReq.user).toEqual(mockUser);
-    expect(mockNext).toHaveBeenCalled();
+  it("returns 401 when Authorization header is missing", async () => {
+    const res = await request(app).get("/protected");
+    expect(res.status).toBe(401);
   });
 
-  it("should return 401 if no token is provided", async () => {
-    mockReq.header.mockReturnValue(null);
+  it("returns 401 when header is present but missing 'Bearer ' prefix", async () => {
+    const user = await createUser();
+    const token = signToken(user._id);
 
-    await auth(mockReq, mockRes, mockNext);
+    const res = await request(app)
+      .get("/protected")
+      .set("Authorization", token); // no "Bearer " prefix
 
-    expect(mockRes.status).toHaveBeenCalledWith(401);
-    expect(mockRes.json).toHaveBeenCalledWith({
-      error: "No token, authorization denied",
-    });
+    expect(res.status).toBe(401);
   });
 
-  it("should return 401 for invalid token format", async () => {
-    mockReq.header.mockReturnValue("invalidformat");
+  it("returns 401 for a random garbage token string", async () => {
+    const res = await request(app)
+      .get("/protected")
+      .set("Authorization", "Bearer this.is.not.a.valid.jwt");
 
-    await auth(mockReq, mockRes, mockNext);
-
-    expect(mockRes.status).toHaveBeenCalledWith(401);
-    expect(mockRes.json).toHaveBeenCalledWith({
-      error: "Token format invalid, authorization denied",
-    });
+    expect(res.status).toBe(401);
   });
 
-  it("should return 401 for malformed token", async () => {
-    mockReq.header.mockReturnValue("Bearer invalidtoken");
-    jwt.verify.mockImplementation(() => {
-      throw new Error("invalid token");
-    });
+  it("returns 401 for an expired JWT", async () => {
+    const user = await createUser();
+    const token = expiredToken(user._id);
 
-    await auth(mockReq, mockRes, mockNext);
+    // Small delay to ensure the 1ms token has expired
+    await new Promise((r) => setTimeout(r, 10));
 
-    expect(mockRes.status).toHaveBeenCalledWith(401);
-    expect(mockRes.json).toHaveBeenCalledWith({
-      error: "Token is not valid",
-    });
+    const res = await request(app)
+      .get("/protected")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(401);
   });
 
-  it("should return 401 if user no longer exists", async () => {
-    mockReq.header.mockReturnValue("Bearer validtoken");
-    jwt.verify.mockReturnValue({ id: "user123" });
-    User.findById.mockResolvedValue(null);
+  it("returns 401 when the user account has deletedAccount: true", async () => {
+    const user = await createUser();
+    const token = signToken(user._id);
 
-    await auth(mockReq, mockRes, mockNext);
+    // Soft-delete the user after signing the token
+    await User.findByIdAndUpdate(user._id, { deletedAccount: true });
 
-    expect(mockRes.status).toHaveBeenCalledWith(401);
-    expect(mockRes.json).toHaveBeenCalledWith({
-      error: "User not found",
-    });
+    const res = await request(app)
+      .get("/protected")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(401);
   });
 });

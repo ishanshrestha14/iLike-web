@@ -1,108 +1,166 @@
+import { describe, it, expect, beforeEach } from "vitest";
 import request from "supertest";
-import mongoose from "mongoose";
-import { app } from "../../server";
-import User from "../../models/user";
-import Match from "../../models/Match";
-import { generateToken } from "../../utils/authUtils";
+import app from "../../server.js";
+import Match from "../../models/Match.js";
+import { createUser, createProfile, signToken } from "../helpers.js";
 
-describe("Match Controller", () => {
-  let token;
-  let user1;
-  let user2;
+// setup.js handles MongoDB Memory Server lifecycle and clears collections beforeEach.
 
-  beforeAll(async () => {
-    // Create test users
-    user1 = await User.create({
-      name: "Test User 1",
-      email: "test1@example.com",
-      password: "password123",
-    });
+let userA, userB, tokenA, tokenB;
 
-    user2 = await User.create({
-      name: "Test User 2",
-      email: "test2@example.com",
-      password: "password123",
-    });
+beforeEach(async () => {
+  userA = await createUser({ name: "User A", email: "a@test.com" });
+  userB = await createUser({ name: "User B", email: "b@test.com" });
+  tokenA = signToken(userA._id);
+  tokenB = signToken(userB._id);
+  // likeUser requires the liked user to have a completed profile
+  await createProfile(userA._id, { name: "User A" });
+  await createProfile(userB._id, { name: "User B" });
+});
 
-    token = generateToken(user1._id);
+describe("POST /api/matches/like/:userId", () => {
+  it("creates a like with isMatch=false for a non-mutual scenario", async () => {
+    const res = await request(app)
+      .post(`/api/matches/like/${userB._id}`)
+      .set("Authorization", `Bearer ${tokenA}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.isMatch).toBe(false);
+
+    const match = await Match.findOne({ likerId: userA._id, likedId: userB._id });
+    expect(match).not.toBeNull();
+    expect(match.isMatch).toBe(false);
   });
 
-  afterAll(async () => {
-    await User.deleteMany({});
-    await Match.deleteMany({});
-    await mongoose.connection.close();
+  it("sets isMatch=true on both records when the like is mutual", async () => {
+    // B likes A first
+    await request(app)
+      .post(`/api/matches/like/${userA._id}`)
+      .set("Authorization", `Bearer ${tokenB}`)
+      .expect(200);
+
+    // A likes B — triggers mutual match detection
+    const res = await request(app)
+      .post(`/api/matches/like/${userB._id}`)
+      .set("Authorization", `Bearer ${tokenA}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.isMatch).toBe(true);
+
+    const [matchAB, matchBA] = await Promise.all([
+      Match.findOne({ likerId: userA._id, likedId: userB._id }),
+      Match.findOne({ likerId: userB._id, likedId: userA._id }),
+    ]);
+    expect(matchAB.isMatch).toBe(true);
+    expect(matchBA.isMatch).toBe(true);
   });
 
-  describe("POST /api/matches/like/:userId", () => {
-    it("should create a new like", async () => {
-      const response = await request(app)
-        .post(`/api/matches/like/${user2._id}`)
-        .set("Authorization", `Bearer ${token}`)
-        .expect(200);
+  it("returns 400 when the same user is liked twice", async () => {
+    await request(app)
+      .post(`/api/matches/like/${userB._id}`)
+      .set("Authorization", `Bearer ${tokenA}`)
+      .expect(200);
 
-      expect(response.body.message).toBe("Like recorded successfully");
-    });
+    const res = await request(app)
+      .post(`/api/matches/like/${userB._id}`)
+      .set("Authorization", `Bearer ${tokenA}`);
 
-    it("should create a match when mutual like occurs", async () => {
-      // User2 likes User1
-      await Match.create({
-        userId: user2._id,
-        likedUserId: user1._id,
-      });
-
-      // User1 likes User2
-      const response = await request(app)
-        .post(`/api/matches/like/${user2._id}`)
-        .set("Authorization", `Bearer ${token}`)
-        .expect(200);
-
-      expect(response.body.isMatch).toBe(true);
-    });
-
-    it("should prevent self-liking", async () => {
-      const response = await request(app)
-        .post(`/api/matches/like/${user1._id}`)
-        .set("Authorization", `Bearer ${token}`)
-        .expect(400);
-
-      expect(response.body.error).toBe("Cannot like yourself");
-    });
-
-    it("should handle invalid user ID", async () => {
-      const response = await request(app)
-        .post("/api/matches/like/invalidid")
-        .set("Authorization", `Bearer ${token}`)
-        .expect(400);
-
-      expect(response.body.error).toBeTruthy();
-    });
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
   });
 
-  describe("GET /api/matches", () => {
-    it("should return user matches", async () => {
-      const response = await request(app)
-        .get("/api/matches")
-        .set("Authorization", `Bearer ${token}`)
-        .expect(200);
+  it("returns 400 for an invalid ObjectId in the URL", async () => {
+    const res = await request(app)
+      .post("/api/matches/like/not-a-valid-id")
+      .set("Authorization", `Bearer ${tokenA}`);
 
-      expect(Array.isArray(response.body)).toBe(true);
-    });
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+  });
 
-    it("should return empty array when no matches exist", async () => {
-      await Match.deleteMany({});
+  it("returns 401 when no auth token is provided", async () => {
+    const res = await request(app).post(`/api/matches/like/${userB._id}`);
+    expect(res.status).toBe(401);
+  });
+});
 
-      const response = await request(app)
-        .get("/api/matches")
-        .set("Authorization", `Bearer ${token}`)
-        .expect(200);
+describe("DELETE /api/matches/like/:userId", () => {
+  it("removes an existing like and returns 200", async () => {
+    // Create the like first
+    await request(app)
+      .post(`/api/matches/like/${userB._id}`)
+      .set("Authorization", `Bearer ${tokenA}`)
+      .expect(200);
 
-      expect(response.body).toHaveLength(0);
-    });
+    const res = await request(app)
+      .delete(`/api/matches/like/${userB._id}`)
+      .set("Authorization", `Bearer ${tokenA}`);
 
-    it("should require authentication", async () => {
-      const response = await request(app).get("/api/matches").expect(401);
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
 
-      expect(response.body.error).toBeTruthy();
-    });
+    const match = await Match.findOne({ likerId: userA._id, likedId: userB._id });
+    expect(match).toBeNull();
+  });
+
+  it("returns 404 when no like exists to remove", async () => {
+    const res = await request(app)
+      .delete(`/api/matches/like/${userB._id}`)
+      .set("Authorization", `Bearer ${tokenA}`);
+
+    expect(res.status).toBe(404);
+    expect(res.body.success).toBe(false);
+  });
+
+  it("returns 400 for an invalid ObjectId in the URL", async () => {
+    const res = await request(app)
+      .delete("/api/matches/like/not-a-valid-id")
+      .set("Authorization", `Bearer ${tokenA}`);
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+  });
+
+  it("returns 401 when no auth token is provided", async () => {
+    const res = await request(app).delete(`/api/matches/like/${userB._id}`);
+    expect(res.status).toBe(401);
+  });
+});
+
+describe("POST /api/matches/undo", () => {
+  it("undoes the most recent swipe and deletes the Match record", async () => {
+    // Create a like via the API (creates a recent Match)
+    await request(app)
+      .post(`/api/matches/like/${userB._id}`)
+      .set("Authorization", `Bearer ${tokenA}`)
+      .expect(200);
+
+    const matchBefore = await Match.findOne({ likerId: userA._id, likedId: userB._id });
+    expect(matchBefore).not.toBeNull();
+
+    const res = await request(app)
+      .post("/api/matches/undo")
+      .set("Authorization", `Bearer ${tokenA}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    const matchAfter = await Match.findOne({ likerId: userA._id, likedId: userB._id });
+    expect(matchAfter).toBeNull();
+  });
+
+  it("returns 400 when there is no swipe to undo", async () => {
+    const res = await request(app)
+      .post("/api/matches/undo")
+      .set("Authorization", `Bearer ${tokenA}`);
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+  });
+
+  it("returns 401 when no auth token is provided", async () => {
+    const res = await request(app).post("/api/matches/undo");
+    expect(res.status).toBe(401);
   });
 });
