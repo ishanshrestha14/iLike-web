@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import type { LoginCredentials } from '@/services/userService';
+import { authService } from '@/services/userService';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import AuthHeader from './AuthHeader';
@@ -22,6 +23,9 @@ const AuthApp: React.FC = () => {
     password: ''
   });
   const [error, setError] = useState('');
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
 
   const { login, register } = useAuth();
   const navigate = useNavigate();
@@ -49,39 +53,44 @@ const AuthApp: React.FC = () => {
 
     try {
       if (isLogin) {
-        // Handle login
         const { email, password } = formData;
-        console.log('Attempting login with:', { email });
-        
         const { user } = await login({ email, password });
-        console.log('Login successful, user:', user);
-        
         toast.success('Logged in successfully!');
-        
-        // Determine redirect path
         let redirectPath = '/';
         if (user?.isAdmin) {
-          redirectPath = '/admin/dashboard';  // Changed to match the admin route structure
+          redirectPath = '/admin/dashboard';
         } else {
           redirectPath = from === '/' ? '/home' : from;
         }
-        
-        console.log('Redirecting to:', redirectPath);
         navigate(redirectPath, { replace: true });
       } else {
-        // Handle registration
         const { name, email, password } = formData;
         await register({ name, email, password });
         toast.success('Account created successfully!');
         navigate('/home', { replace: true });
       }
     } catch (err) {
-      console.error('Authentication error:', err);
       const errorMessage = err instanceof Error ? err.message : 'An error occurred';
       setError(errorMessage);
       toast.error(errorMessage);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!forgotEmail) return;
+    setForgotLoading(true);
+    try {
+      await authService.forgotPassword(forgotEmail);
+      toast.success('If that email exists, a reset link has been sent');
+      setShowForgotModal(false);
+      setForgotEmail('');
+    } catch {
+      toast.error('Failed to send reset email. Please try again.');
+    } finally {
+      setForgotLoading(false);
     }
   };
 
@@ -112,20 +121,63 @@ const AuthApp: React.FC = () => {
             onInputChange={handleInputChange}
             onSubmit={handleSubmit}
           />
-          
+
+          {isLogin && (
+            <div className="text-center mt-3">
+              <button
+                type="button"
+                onClick={() => setShowForgotModal(true)}
+                className="text-sm text-white/70 hover:text-white underline transition-colors"
+              >
+                Forgot password?
+              </button>
+            </div>
+          )}
+
           <AuthToggle
             isLogin={isLogin}
             onToggle={toggleAuthMode}
           />
         </div>
-
-        {/* Demo info */}
-        {/* <div className="text-center mt-6">
-          <p className="text-white/60 text-sm">
-            🎬 Sprint 1 Demo - Ready for backend integration
-          </p>
-        </div> */}
       </div>
+
+      {/* Forgot Password Modal */}
+      {showForgotModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">Reset your password</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Enter your email and we'll send you a link to reset your password.
+            </p>
+            <form onSubmit={handleForgotPassword}>
+              <input
+                type="email"
+                value={forgotEmail}
+                onChange={(e) => setForgotEmail(e.target.value)}
+                placeholder="your@email.com"
+                required
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-pink-500 text-gray-800"
+              />
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setShowForgotModal(false); setForgotEmail(''); }}
+                  className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={forgotLoading || !forgotEmail}
+                  className="flex-1 bg-gradient-to-r from-pink-500 to-red-500 text-white py-2 px-4 rounded-xl font-medium hover:from-pink-600 hover:to-red-600 transition-colors disabled:opacity-50"
+                >
+                  {forgotLoading ? 'Sending...' : 'Send link'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

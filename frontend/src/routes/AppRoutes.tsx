@@ -19,6 +19,7 @@ function ScrollToTop() {
 }
 // Lazy load pages for better performance
 const AuthPage = lazy(() => import("@/pages/AuthPage"));
+const ResetPasswordPage = lazy(() => import("@/pages/ResetPasswordPage"));
 const HomePage = lazy(() => import("@/pages/HomePage"));
 const ExplorePage = lazy(() => import("@/pages/ExplorePage"));
 const MatchesPage = lazy(() => import("@/pages/MatchesPage"));
@@ -49,6 +50,7 @@ const AppRoutes = () => {
       <Routes>
         {/* Public routes */}
         <Route path="/" element={<Navigate to="/auth" replace />} />
+        <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
         <Route
           path="/auth"
           element={

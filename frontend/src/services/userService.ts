@@ -150,6 +150,20 @@ export const authService = {
     return response.data;
   },
 
+  // Request password reset email
+  async forgotPassword(email: string): Promise<void> {
+    await api.post("/users/forgot-password", { email });
+  },
+
+  // Reset password with token — returns new access token on success
+  async resetPassword(token: string, password: string): Promise<string> {
+    const response = await api.post<{ success: boolean; token: string }>(
+      `/users/reset-password/${token}`,
+      { password }
+    );
+    return response.data.token;
+  },
+
   // Delete account
   async deleteAccount(password: string): Promise<void> {
     await api.delete("/users/me", { data: { password } });
