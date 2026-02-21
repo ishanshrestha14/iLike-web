@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import DOMPurify from "dompurify";
 import MainLayout from "@/layouts/MainLayout";
 import {
   getProfile,
@@ -42,7 +41,7 @@ const ProfilePage = () => {
         toast.error("Failed to load profile");
       }
     } catch (error: unknown) {
-      console.error("Profile loading error:", error);
+      // profile load failed
       toast.error("Error loading profile");
     } finally {
       setIsLoading(false);
@@ -73,7 +72,7 @@ const ProfilePage = () => {
         toast.error(response.message || "Failed to update profile");
       }
     } catch (error: unknown) {
-      console.error("Profile update error:", error);
+      // profile update failed
       toast.error("Error updating profile");
     } finally {
       setIsSaving(false);
@@ -285,7 +284,7 @@ const ProfilePage = () => {
                 />
               ) : (
                 <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
-                  {DOMPurify.sanitize(profile.bio)}
+                  {profile.bio}
                 </p>
               )}
             </div>

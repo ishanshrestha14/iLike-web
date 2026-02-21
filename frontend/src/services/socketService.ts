@@ -49,13 +49,9 @@ export const connect = (): Socket => {
     transports: ["websocket", "polling"],
   });
 
-  socket.on("connect", () => {
-    console.log("Socket connected:", socket?.id);
-  });
+  socket.on("connect", () => {});
 
-  socket.on("connect_error", (err) => {
-    console.error("Socket connection error:", err.message);
-  });
+  socket.on("connect_error", () => {});
 
   return socket;
 };

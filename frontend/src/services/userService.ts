@@ -49,10 +49,8 @@ export const authService = {
   // Login user
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
     try {
-      console.log('Sending login request with:', credentials);
       const response = await api.post<AuthResponse>("/users/login", credentials);
-      console.log('Login response received:', response.data);
-      
+
       const { token, user } = response.data;
       if (token) {
         setAccessToken(token);
@@ -66,13 +64,6 @@ export const authService = {
       const errorData = error && typeof error === 'object' && 'response' in error
         ? error.response as { data?: unknown; status?: number; headers?: unknown }
         : null;
-      
-      console.error('Login error:', {
-        message: errorMessage,
-        response: errorData?.data,
-        status: errorData?.status,
-        headers: errorData?.headers
-      });
       
       // Re-throw with a more specific error if possible
       if (errorData?.data && typeof errorData.data === 'object' && errorData.data !== null) {

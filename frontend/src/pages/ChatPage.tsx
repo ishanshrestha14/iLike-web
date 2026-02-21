@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import DOMPurify from "dompurify";
 import Navbar from "@/components/Navbar";
 import {
   Send,
@@ -109,7 +108,7 @@ const MessageBubble = React.memo(
             : "bg-white text-gray-800 shadow-sm"
         }`}
       >
-        <p className="text-sm">{DOMPurify.sanitize(message.content)}</p>
+        <p className="text-sm">{message.content}</p>
         <span
           className={`flex items-center gap-1 text-xs mt-1 ${
             message.isFromMe ? "text-pink-100" : "text-gray-500"
@@ -180,7 +179,7 @@ const ChatPage: React.FC = () => {
           }
         }
       } catch (error) {
-        console.error("Failed to load chats:", error);
+        // load failed — loading state cleared in finally
       } finally {
         setLoading(false);
       }
@@ -194,7 +193,7 @@ const ChatPage: React.FC = () => {
     try {
       socketService.connect();
     } catch {
-      console.error("Failed to connect socket");
+      // socket connection failed
       return;
     }
 
@@ -305,7 +304,7 @@ const ChatPage: React.FC = () => {
           setHasMoreMessages(hasMore);
         }
       } catch (error) {
-        console.error("Failed to load messages:", error);
+        // message load failed
         if (!ignore) {
           setMessages([]);
           setHasMoreMessages(false);
@@ -393,7 +392,7 @@ const ChatPage: React.FC = () => {
       setMessages([]);
       setShowMenu(false);
     } catch (error) {
-      console.error("Failed to block user:", error);
+      // block failed
     }
   };
 
@@ -410,7 +409,7 @@ const ChatPage: React.FC = () => {
       setReportDescription("");
       setShowMenu(false);
     } catch (error) {
-      console.error("Failed to report user:", error);
+      // report failed
     }
   };
 
@@ -510,7 +509,7 @@ const ChatPage: React.FC = () => {
         }
       });
     } catch (error) {
-      console.error("Failed to load older messages:", error);
+      // older messages load failed
     } finally {
       setLoadingOlder(false);
     }
