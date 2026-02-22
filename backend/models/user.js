@@ -19,6 +19,18 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    isBanned: {
+      type: Boolean,
+      default: false,
+    },
+    suspendedUntil: {
+      type: Date,
+      default: null,
+    },
+    banReason: {
+      type: String,
+      default: null,
+    },
     bio: String,
     avatar: String,
     likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],

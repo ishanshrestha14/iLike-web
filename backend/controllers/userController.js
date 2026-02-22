@@ -130,6 +130,25 @@ export const login = async (req, res) => {
       });
     }
 
+    if (user.isBanned) {
+      return res.status(403).json({
+        success: false,
+        message: "Your account has been banned.",
+      });
+    }
+
+    if (user.suspendedUntil && user.suspendedUntil > new Date()) {
+      const until = user.suspendedUntil.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+      return res.status(403).json({
+        success: false,
+        message: `Your account is suspended until ${until}.`,
+      });
+    }
+
     const token = generateAccessToken(user);
     const refreshToken = await generateRefreshToken(user);
 
@@ -263,6 +282,22 @@ export const refreshAccessToken = async (req, res) => {
       }
 
       return res.status(401).json({ success: false, message: "Invalid refresh token" });
+    }
+
+    // Reject banned or suspended users
+    if (user.isBanned) {
+      res.clearCookie("refreshToken", { path: "/" });
+      return res.status(403).json({ success: false, message: "Your account has been banned." });
+    }
+
+    if (user.suspendedUntil && user.suspendedUntil > new Date()) {
+      const until = user.suspendedUntil.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+      res.clearCookie("refreshToken", { path: "/" });
+      return res.status(403).json({ success: false, message: `Your account is suspended until ${until}.` });
     }
 
     // Issue new access token

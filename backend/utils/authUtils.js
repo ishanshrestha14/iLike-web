@@ -20,11 +20,29 @@ export const verifyToken = async (token) => {
       throw new Error("User not found");
     }
 
+    if (user.isBanned) {
+      const err = new Error("Your account has been banned.");
+      err.status = 403;
+      throw err;
+    }
+
+    if (user.suspendedUntil && user.suspendedUntil > new Date()) {
+      const until = user.suspendedUntil.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+      const err = new Error(`Your account is suspended until ${until}.`);
+      err.status = 403;
+      throw err;
+    }
+
     return {
       userId: decoded.id,
       user: user,
     };
   } catch (error) {
+    if (error.status === 403) throw error;
     throw new Error("Invalid token");
   }
 };
@@ -63,7 +81,8 @@ export const authenticateToken = async (req, res, next) => {
     req.user = user;
     next();
   } catch (error) {
-    return res.status(401).json({ message: "Unauthorized" });
+    const status = error.status === 403 ? 403 : 401;
+    return res.status(status).json({ success: false, message: error.message || "Unauthorized" });
   }
 };
 
