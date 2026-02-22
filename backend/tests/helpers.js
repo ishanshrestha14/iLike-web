@@ -1,5 +1,7 @@
 import User from "../models/User.js";
 import Profile from "../models/Profile.js";
+import Match from "../models/Match.js";
+import Chat from "../models/Chat.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
@@ -46,6 +48,27 @@ export async function createProfile(userId, overrides = {}) {
     photoUrls: ["/uploads/test.jpg"],
     isProfileComplete: true,
     ...overrides,
+  });
+}
+
+/**
+ * Create a mutual Match record directly in the DB (bypasses likeUser route).
+ * Needed to set up the precondition for createChat.
+ */
+export async function createMutualMatch(userAId, userBId) {
+  await Match.create([
+    { likerId: userAId, likedId: userBId, isMatch: true, matchedAt: new Date() },
+    { likerId: userBId, likedId: userAId, isMatch: true, matchedAt: new Date() },
+  ]);
+}
+
+/**
+ * Create a Chat document directly in the DB between two users.
+ */
+export async function createChatDirect(userAId, userBId) {
+  return Chat.create({
+    participants: [userAId, userBId],
+    unreadCounts: new Map(),
   });
 }
 

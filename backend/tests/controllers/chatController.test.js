@@ -1,188 +1,192 @@
+import { describe, it, expect, beforeEach } from "vitest";
 import request from "supertest";
-import mongoose from "mongoose";
-import { app } from "../../server";
-import User from "../../models/user";
-import Chat from "../../models/Chat";
-import Message from "../../models/Message";
-import { generateToken } from "../../utils/authUtils";
+import app from "../../server.js";
+import Message from "../../models/Message.js";
+import {
+  createUser,
+  createMutualMatch,
+  createChatDirect,
+  signToken,
+} from "../helpers.js";
 
-describe("Chat Controller", () => {
-  let token;
-  let user1;
-  let user2;
-  let chat;
+// setup.js handles MongoDB Memory Server lifecycle and clears all collections beforeEach.
 
-  beforeAll(async () => {
-    // Create test users
-    user1 = await User.create({
-      name: "Test User 1",
-      email: "test1@example.com",
-      password: "password123",
-    });
+let userA, userB, tokenA, tokenB, chat;
 
-    user2 = await User.create({
-      name: "Test User 2",
-      email: "test2@example.com",
-      password: "password123",
-    });
+beforeEach(async () => {
+  userA = await createUser({ name: "User A", email: "a@chat.com" });
+  userB = await createUser({ name: "User B", email: "b@chat.com" });
+  tokenA = signToken(userA._id);
+  tokenB = signToken(userB._id);
+  await createMutualMatch(userA._id, userB._id);
+  chat = await createChatDirect(userA._id, userB._id);
+});
 
-    token = generateToken(user1._id);
+// ─── createChat ──────────────────────────────────────────────────────────────
 
-    // Create a test chat
-    chat = await Chat.create({
-      participants: [user1._id, user2._id],
-    });
+describe("POST /api/chats", () => {
+  it("creates a new chat when users are mutually matched → 201 with chatId", async () => {
+    // Set up fresh users with a match but no existing chat
+    const u1 = await createUser({ email: "new1@chat.com" });
+    const u2 = await createUser({ email: "new2@chat.com" });
+    await createMutualMatch(u1._id, u2._id);
+
+    const res = await request(app)
+      .post("/api/chats")
+      .set("Authorization", `Bearer ${signToken(u1._id)}`)
+      .send({ otherUserId: u2._id.toString() });
+
+    expect(res.status).toBe(201);
+    expect(res.body.chatId).toBeTruthy();
+    expect(res.body.otherUserId.toString()).toBe(u2._id.toString());
   });
 
-  afterAll(async () => {
-    await User.deleteMany({});
-    await Chat.deleteMany({});
-    await Message.deleteMany({});
-    await mongoose.connection.close();
+  it("returns existing chat (200) when a chat already exists between the users", async () => {
+    const res = await request(app)
+      .post("/api/chats")
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ otherUserId: userB._id.toString() });
+
+    expect(res.status).toBe(200);
+    expect(res.body.chatId.toString()).toBe(chat._id.toString());
   });
 
-  describe("GET /api/chat/conversations", () => {
-    it("should return user conversations", async () => {
-      const response = await request(app)
-        .get("/api/chat/conversations")
-        .set("Authorization", `Bearer ${token}`)
-        .expect(200);
+  it("returns 403 when users are not matched", async () => {
+    const stranger = await createUser({ email: "stranger@chat.com" });
 
-      expect(Array.isArray(response.body)).toBe(true);
-      expect(response.body[0].participants).toHaveLength(2);
-    });
+    const res = await request(app)
+      .post("/api/chats")
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ otherUserId: stranger._id.toString() });
 
-    it("should return empty array when no conversations exist", async () => {
-      await Chat.deleteMany({});
-
-      const response = await request(app)
-        .get("/api/chat/conversations")
-        .set("Authorization", `Bearer ${token}`)
-        .expect(200);
-
-      expect(response.body).toHaveLength(0);
-    });
-
-    it("should require authentication", async () => {
-      const response = await request(app)
-        .get("/api/chat/conversations")
-        .expect(401);
-
-      expect(response.body.error).toBeTruthy();
-    });
+    expect(res.status).toBe(403);
+    expect(res.body.success).toBe(false);
   });
 
-  describe("GET /api/chat/messages/:chatId", () => {
-    it("should return chat messages", async () => {
-      // Create test messages
-      await Message.create({
-        chatId: chat._id,
-        senderId: user1._id,
-        content: "Hello!",
-      });
+  it("returns 400 for an invalid otherUserId", async () => {
+    const res = await request(app)
+      .post("/api/chats")
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ otherUserId: "not-a-valid-id" });
 
-      const response = await request(app)
-        .get(`/api/chat/messages/${chat._id}`)
-        .set("Authorization", `Bearer ${token}`)
-        .expect(200);
-
-      expect(Array.isArray(response.body)).toBe(true);
-      expect(response.body[0].content).toBe("Hello!");
-    });
-
-    it("should handle invalid chat ID", async () => {
-      const response = await request(app)
-        .get("/api/chat/messages/invalidid")
-        .set("Authorization", `Bearer ${token}`)
-        .expect(400);
-
-      expect(response.body.error).toBeTruthy();
-    });
-
-    it("should prevent unauthorized access to chat", async () => {
-      const unauthorizedUser = await User.create({
-        name: "Unauthorized User",
-        email: "unauthorized@example.com",
-        password: "password123",
-      });
-
-      const unauthorizedToken = generateToken(unauthorizedUser._id);
-
-      const response = await request(app)
-        .get(`/api/chat/messages/${chat._id}`)
-        .set("Authorization", `Bearer ${unauthorizedToken}`)
-        .expect(403);
-
-      expect(response.body.error).toBe("Not authorized to access this chat");
-    });
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
   });
 
-  describe("POST /api/chat/messages", () => {
-    it("should create a new message", async () => {
-      const messageData = {
-        chatId: chat._id,
-        content: "Test message",
-      };
+  it("returns 401 without auth token", async () => {
+    const res = await request(app)
+      .post("/api/chats")
+      .send({ otherUserId: userB._id.toString() });
 
-      const response = await request(app)
-        .post("/api/chat/messages")
-        .set("Authorization", `Bearer ${token}`)
-        .send(messageData)
-        .expect(201);
+    expect(res.status).toBe(401);
+  });
+});
 
-      expect(response.body.content).toBe(messageData.content);
-      expect(response.body.senderId.toString()).toBe(user1._id.toString());
-    });
+// ─── sendMessage ─────────────────────────────────────────────────────────────
 
-    it("should validate message content", async () => {
-      const messageData = {
-        chatId: chat._id,
-        content: "",
-      };
+describe("POST /api/chats/:chatId/messages", () => {
+  it("sends a message → 201 with messageId and content", async () => {
+    const res = await request(app)
+      .post(`/api/chats/${chat._id}/messages`)
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ content: "Hello there!" });
 
-      const response = await request(app)
-        .post("/api/chat/messages")
-        .set("Authorization", `Bearer ${token}`)
-        .send(messageData)
-        .expect(400);
+    expect(res.status).toBe(201);
+    expect(res.body.messageId).toBeTruthy();
+    expect(res.body.content).toBe("Hello there!");
+    expect(res.body.senderId.toString()).toBe(userA._id.toString());
+  });
 
-      expect(response.body.error).toBe("Message content is required");
-    });
+  it("returns 400 for empty content", async () => {
+    const res = await request(app)
+      .post(`/api/chats/${chat._id}/messages`)
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ content: "   " });
 
-    it("should handle invalid chat ID", async () => {
-      const messageData = {
-        chatId: "invalidid",
-        content: "Test message",
-      };
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+  });
 
-      const response = await request(app)
-        .post("/api/chat/messages")
-        .set("Authorization", `Bearer ${token}`)
-        .send(messageData)
-        .expect(400);
+  it("returns 400 for an invalid chatId", async () => {
+    const res = await request(app)
+      .post("/api/chats/not-a-valid-id/messages")
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ content: "Hello" });
 
-      expect(response.body.error).toBeTruthy();
-    });
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+  });
 
-    it("should prevent sending message to unauthorized chat", async () => {
-      const unauthorizedChat = await Chat.create({
-        participants: [user2._id, mongoose.Types.ObjectId()],
-      });
+  it("returns 404 when user is not a participant in the chat", async () => {
+    const outsider = await createUser({ email: "outsider@chat.com" });
 
-      const messageData = {
-        chatId: unauthorizedChat._id,
-        content: "Test message",
-      };
+    const res = await request(app)
+      .post(`/api/chats/${chat._id}/messages`)
+      .set("Authorization", `Bearer ${signToken(outsider._id)}`)
+      .send({ content: "Can I join?" });
 
-      const response = await request(app)
-        .post("/api/chat/messages")
-        .set("Authorization", `Bearer ${token}`)
-        .send(messageData)
-        .expect(403);
+    expect(res.status).toBe(404);
+    expect(res.body.success).toBe(false);
+  });
 
-      expect(response.body.error).toBe(
-        "Not authorized to send message to this chat"
-      );
-    });
+  it("returns 401 without auth token", async () => {
+    const res = await request(app)
+      .post(`/api/chats/${chat._id}/messages`)
+      .send({ content: "Hello" });
+
+    expect(res.status).toBe(401);
+  });
+});
+
+// ─── deleteMessage ────────────────────────────────────────────────────────────
+
+describe("DELETE /api/chats/:chatId/messages/:messageId", () => {
+  let sentMessageId;
+
+  beforeEach(async () => {
+    // Send a message to get a real messageId
+    const res = await request(app)
+      .post(`/api/chats/${chat._id}/messages`)
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ content: "To be deleted" });
+    sentMessageId = res.body.messageId;
+  });
+
+  it("soft-deletes own message → 200 and sets deletedAt in DB", async () => {
+    const res = await request(app)
+      .delete(`/api/chats/${chat._id}/messages/${sentMessageId}`)
+      .set("Authorization", `Bearer ${tokenA}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    const msg = await Message.findOne({ messageId: sentMessageId });
+    expect(msg.deletedAt).not.toBeNull();
+  });
+
+  it("returns 403 when trying to delete another user's message", async () => {
+    const res = await request(app)
+      .delete(`/api/chats/${chat._id}/messages/${sentMessageId}`)
+      .set("Authorization", `Bearer ${tokenB}`); // B tries to delete A's message
+
+    expect(res.status).toBe(403);
+    expect(res.body.success).toBe(false);
+  });
+
+  it("returns 404 for a non-existent messageId", async () => {
+    const res = await request(app)
+      .delete(`/api/chats/${chat._id}/messages/nonexistent-msg-id`)
+      .set("Authorization", `Bearer ${tokenA}`);
+
+    expect(res.status).toBe(404);
+    expect(res.body.success).toBe(false);
+  });
+
+  it("returns 401 without auth token", async () => {
+    const res = await request(app).delete(
+      `/api/chats/${chat._id}/messages/${sentMessageId}`
+    );
+
+    expect(res.status).toBe(401);
   });
 });

@@ -67,12 +67,12 @@ const messageSchema = new mongoose.Schema(
   }
 );
 
-// Generate messageId if not provided
-messageSchema.pre("save", function (next) {
+// Generate messageId before validation so the required check passes
+messageSchema.pre("validate", function (next) {
   if (!this.messageId) {
     this.messageId = `${this.chatId.toString()}_${Date.now()}_${Math.random()
       .toString(36)
-      .substr(2, 9)}`;
+      .substring(2, 11)}`;
   }
   next();
 });
