@@ -1,5 +1,6 @@
 import { useState } from "react";
 import AdminLayout from "@/layouts/AdminLayout";
+import { toast } from "react-toastify";
 
 const Settings = () => {
   const [settings, setSettings] = useState({
@@ -31,9 +32,7 @@ const Settings = () => {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    // In a real app, this would be an API call to save settings
-    console.log("Saving settings:", settings);
-    alert("Settings saved successfully!");
+    toast.info("Admin settings coming soon");
   };
 
   return (
