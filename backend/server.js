@@ -38,6 +38,7 @@ import matchRoutes from "./routes/matchRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
 import settingsRoutes from "./routes/settingsRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
 
 // Use routes
 app.use("/api/users", userRoutes);
@@ -46,6 +47,7 @@ app.use("/api/matches", matchRoutes);
 app.use("/api/chats", chatRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/admin", adminRoutes);
 
 app.get("/", (req, res) => {
   res.send("iLike application backend is running!");
