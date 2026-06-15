@@ -1,0 +1,65 @@
+graph TB
+    subgraph Client["Frontend (React)"]
+        UI[UI Components]
+        RC[React Context]
+        RS[React Services]
+        WS[WebSocket Client]
+    end
+
+    subgraph Server["Backend (Node.js)"]
+        API[API Routes]
+        MC[Middleware]
+        CTRL[Controllers]
+        WSS[WebSocket Server]
+        AUTH[Auth Service]
+    end
+
+    subgraph Database["MongoDB"]
+        US[(User Store)]
+        PS[(Profile Store)]
+        MS[(Match Store)]
+        CS[(Chat Store)]
+    end
+
+    subgraph External["External Services"]
+        S3[AWS S3]
+        GEO[Geocoding API]
+    end
+
+    %% Frontend Internal Connections
+    UI --> RC
+    UI --> RS
+    UI --> WS
+    RC --> RS
+
+    %% Backend Internal Connections
+    API --> MC
+    MC --> CTRL
+    CTRL --> WSS
+    CTRL --> AUTH
+
+    %% Frontend to Backend Connections
+    RS -->|HTTP| API
+    WS -->|WebSocket| WSS
+
+    %% Backend to Database Connections
+    CTRL --> US
+    CTRL --> PS
+    CTRL --> MS
+    CTRL --> CS
+
+    %% External Service Connections
+    CTRL -->|Image Upload| S3
+    CTRL -->|Location Services| GEO
+
+    %% Styling
+    classDef frontend fill:#1E3A8A,stroke:#60A5FA,stroke-width:2px,color:#BFDBFE
+    classDef backend fill:#14532D,stroke:#4ADE80,stroke-width:2px,color:#BBF7D0
+    classDef database fill:#4C1D95,stroke:#A78BFA,stroke-width:2px,color:#DDD6FE
+    classDef external fill:#78350F,stroke:#FBBF24,stroke-width:2px,color:#FDE68A
+
+
+    class UI,RC,RS,WS frontend
+    class API,MC,CTRL,WSS,AUTH backend
+    class US,PS,MS,CS database
+    class S3,GEO external
