@@ -1,167 +1,144 @@
+/**
+ * Integration tests for profileController.js against the REAL profile API.
+ *
+ * Uses the global in-memory MongoDB from setup.js (no self-managed connection)
+ * and the shared helpers, matching matchController.test.js. SKIP_FACE_DETECTION
+ * and SKIP_NSFW_MODERATION are set globally by setup.js, so the upload gates are
+ * bypassed here — these tests exercise the controller logic, not the ML models.
+ *
+ * Routes under test (see routes/profileRoutes.js):
+ *   GET  /api/profile/me
+ *   POST /api/profile/setup
+ *   PUT  /api/profile/update
+ *
+ * Note on rate limiting: uploadLimiter (max 10 / 15-min window, shared in-memory
+ * across the test process) guards /setup and /update. Preconditions are created
+ * directly via Profile.create to keep authenticated upload-route HTTP calls well
+ * under that cap. Unauthenticated requests 401 at verifyToken before the limiter.
+ */
+
+import { describe, it, expect, beforeEach } from "vitest";
 import request from "supertest";
-import mongoose from "mongoose";
 import app from "../../server.js";
 import Profile from "../../models/Profile.js";
-import User from "../../models/user.js";
-import { generateToken } from "../../controllers/userController.js";
+import { createUser, createProfile, signToken } from "../helpers.js";
 
-describe("Profile Controller", () => {
-  let testUser;
-  let authToken;
+let user, token;
 
-  const userCredentials = {
-    email: "test@example.com",
-    password: "password123",
-    name: "Test User",
-  };
+beforeEach(async () => {
+  user = await createUser({ name: "Profile User", email: "p@test.com" });
+  token = signToken(user._id);
+});
 
-  const profileData = {
-    bio: "Test bio",
-    dateOfBirth: "1990-01-01",
-    interests: ["music", "movies"],
-    location: "Test City",
-  };
+/** A complete, valid setup payload. photoUrls uses a legacy /uploads/ path,
+ *  which isValidPhotoUrl accepts — satisfying the "at least one photo"
+ *  requirement without uploading a real file. */
+const validSetup = {
+  name: "Alice",
+  gender: "Female",
+  location: "Test City",
+  intentions: ["Long-term relationship"],
+  age: 25,
+  bio: "Test bio for the profile controller",
+  interests: ["Reading", "Music"],
+  height: "5'6\"",
+  photoUrls: ["/uploads/test.jpg"],
+};
 
-  beforeAll(async () => {
-    await mongoose.connect(
-      process.env.MONGODB_URI_TEST || "mongodb://localhost:27017/ilike-test"
-    );
+describe("GET /api/profile/me", () => {
+  it("returns 404 when the user has no profile", async () => {
+    const res = await request(app)
+      .get("/api/profile/me")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(404);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toMatch(/not found/i);
   });
 
-  afterAll(async () => {
-    await mongoose.connection.dropDatabase();
-    await mongoose.connection.close();
+  it("returns the profile when it exists", async () => {
+    await createProfile(user._id, { name: "Alice", bio: "Hello world" });
+
+    const res = await request(app)
+      .get("/api/profile/me")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.name).toBe("Alice");
+    expect(res.body.data.bio).toBe("Hello world");
   });
 
-  beforeEach(async () => {
-    await User.deleteMany({});
-    await Profile.deleteMany({});
-    testUser = await User.create(userCredentials);
-    authToken = generateToken(testUser._id);
+  it("returns 401 without an auth token", async () => {
+    const res = await request(app).get("/api/profile/me");
+    expect(res.status).toBe(401);
+  });
+});
+
+describe("POST /api/profile/setup", () => {
+  it("creates a profile with valid data and returns a fresh token", async () => {
+    const res = await request(app)
+      .post("/api/profile/setup")
+      .set("Authorization", `Bearer ${token}`)
+      .send(validSetup);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.name).toBe(validSetup.name);
+    expect(res.body.data.isProfileComplete).toBe(true);
+    expect(res.body.token).toBeTruthy();
+
+    const saved = await Profile.findOne({ userId: user._id });
+    expect(saved).not.toBeNull();
+    expect(saved.age).toBe(25);
+    expect(saved.photoUrls).toContain("/uploads/test.jpg");
   });
 
-  describe("POST /api/profiles", () => {
-    it("should create a new profile", async () => {
-      const res = await request(app)
-        .post("/api/profiles")
-        .set("Authorization", `Bearer ${authToken}`)
-        .send(profileData)
-        .expect(201);
+  it("returns 400 when required fields are missing", async () => {
+    const res = await request(app)
+      .post("/api/profile/setup")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "Only a name" });
 
-      expect(res.body.bio).toBe(profileData.bio);
-      expect(res.body.user).toBe(testUser._id.toString());
-      expect(res.body.interests).toEqual(
-        expect.arrayContaining(profileData.interests)
-      );
-    });
-
-    it("should not create profile without auth token", async () => {
-      const res = await request(app)
-        .post("/api/profiles")
-        .send(profileData)
-        .expect(401);
-
-      expect(res.body.message).toMatch(/no token/i);
-    });
-
-    it("should validate required fields", async () => {
-      const res = await request(app)
-        .post("/api/profiles")
-        .set("Authorization", `Bearer ${authToken}`)
-        .send({})
-        .expect(400);
-
-      expect(res.body.message).toMatch(/required/i);
-    });
-
-    it("should not create duplicate profile for user", async () => {
-      await Profile.create({ ...profileData, user: testUser._id });
-
-      const res = await request(app)
-        .post("/api/profiles")
-        .set("Authorization", `Bearer ${authToken}`)
-        .send(profileData)
-        .expect(400);
-
-      expect(res.body.message).toMatch(/profile already exists/i);
-    });
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toMatch(/required/i);
   });
 
-  describe("PUT /api/profiles", () => {
-    let existingProfile;
+  it("returns 401 without an auth token", async () => {
+    const res = await request(app).post("/api/profile/setup").send(validSetup);
+    expect(res.status).toBe(401);
+  });
+});
 
-    beforeEach(async () => {
-      existingProfile = await Profile.create({
-        ...profileData,
-        user: testUser._id,
-      });
-    });
+describe("PUT /api/profile/update", () => {
+  it("updates an allowed field on an existing profile", async () => {
+    await createProfile(user._id, { name: "Alice", bio: "Original bio" });
 
-    it("should update existing profile", async () => {
-      const updateData = {
-        bio: "Updated bio",
-        interests: ["coding", "gaming"],
-      };
+    const res = await request(app)
+      .put("/api/profile/update")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ bio: "Updated bio" });
 
-      const res = await request(app)
-        .put("/api/profiles")
-        .set("Authorization", `Bearer ${authToken}`)
-        .send(updateData)
-        .expect(200);
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.bio).toBe("Updated bio");
 
-      expect(res.body.bio).toBe(updateData.bio);
-      expect(res.body.interests).toEqual(
-        expect.arrayContaining(updateData.interests)
-      );
-    });
-
-    it("should not update profile of different user", async () => {
-      const otherUser = await User.create({
-        email: "other@example.com",
-        password: "password123",
-        name: "Other User",
-      });
-      const otherToken = generateToken(otherUser._id);
-
-      const res = await request(app)
-        .put("/api/profiles")
-        .set("Authorization", `Bearer ${otherToken}`)
-        .send({ bio: "Hacked bio" })
-        .expect(404);
-
-      expect(res.body.message).toMatch(/profile not found/i);
-    });
+    const saved = await Profile.findOne({ userId: user._id });
+    expect(saved.bio).toBe("Updated bio");
   });
 
-  describe("GET /api/profiles/:userId", () => {
-    let existingProfile;
+  it("returns 404 when the user has no profile to update", async () => {
+    const stranger = await createUser({ email: "stranger@test.com" });
+    const strangerToken = signToken(stranger._id);
 
-    beforeEach(async () => {
-      existingProfile = await Profile.create({
-        ...profileData,
-        user: testUser._id,
-      });
-    });
+    const res = await request(app)
+      .put("/api/profile/update")
+      .set("Authorization", `Bearer ${strangerToken}`)
+      .send({ bio: "Nothing to update" });
 
-    it("should get profile by user ID", async () => {
-      const res = await request(app)
-        .get(`/api/profiles/${testUser._id}`)
-        .set("Authorization", `Bearer ${authToken}`)
-        .expect(200);
-
-      expect(res.body.bio).toBe(profileData.bio);
-      expect(res.body.user).toBe(testUser._id.toString());
-    });
-
-    it("should return 404 for non-existent profile", async () => {
-      const nonExistentId = new mongoose.Types.ObjectId();
-
-      const res = await request(app)
-        .get(`/api/profiles/${nonExistentId}`)
-        .set("Authorization", `Bearer ${authToken}`)
-        .expect(404);
-
-      expect(res.body.message).toMatch(/not found/i);
-    });
+    expect(res.status).toBe(404);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toMatch(/not found/i);
   });
 });
