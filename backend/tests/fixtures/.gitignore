@@ -1,1 +1,4 @@
+# Local-only test fixtures (personal photos) — integration tests auto-skip when absent.
 *.jpg
+*.jpeg
+*.png
