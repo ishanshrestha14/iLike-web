@@ -69,6 +69,47 @@ export function getRedisClient() {
 }
 
 /**
+ * Creates a dedicated pub/sub client pair for the Socket.IO Redis adapter.
+ *
+ * These are SEPARATE from the cache client on purpose:
+ *   - The cache client is fail-fast (enableOfflineQueue:false) so request-path
+ *     reads degrade to the DB instead of hanging.
+ *   - The adapter clients keep the offline queue ENABLED so a SUBSCRIBE/PUBLISH
+ *     issued during startup (before the socket connects) is not dropped, and a
+ *     subscriber connection cannot also serve normal commands anyway.
+ *
+ * Returns null when REDIS_URL is unset, signalling the caller to run
+ * single-instance with the default in-memory Socket.IO adapter.
+ *
+ * @returns {{ pubClient: import("ioredis").Redis, subClient: import("ioredis").Redis } | null}
+ */
+export function createAdapterClients() {
+  const url = process.env.REDIS_URL;
+  if (!url) {
+    console.warn(
+      "[Redis] REDIS_URL not set — Socket.IO running single-instance (no adapter)."
+    );
+    return null;
+  }
+
+  const opts = {
+    retryStrategy(times) {
+      return Math.min(times * 200, 2000);
+    },
+  };
+  const pubClient = new Redis(url, opts);
+  const subClient = pubClient.duplicate();
+
+  for (const [name, c] of [["pub", pubClient], ["sub", subClient]]) {
+    c.on("error", (err) =>
+      console.warn(`[Redis] adapter ${name} error:`, err.message)
+    );
+  }
+
+  return { pubClient, subClient };
+}
+
+/**
  * Closes the Redis connection (graceful shutdown / test teardown).
  * @returns {Promise<void>}
  */
