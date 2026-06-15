@@ -9,6 +9,7 @@ import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import SocketServer from "./socket/socketServer.js";
 import { preloadFaceDetectionModel } from "./services/faceDetectionService.js";
+import { preloadNsfwModel } from "./services/nsfwModerationService.js";
 
 // Load environment variables
 dotenv.config();
@@ -121,6 +122,7 @@ if (process.env.NODE_ENV !== "test") {
     await initServer();
     await connectDB();
     await preloadFaceDetectionModel();
+    await preloadNsfwModel();
 
     const server = createServer(app);
 

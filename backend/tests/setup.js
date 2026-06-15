@@ -10,6 +10,10 @@ process.env.JWT_SECRET = "test-jwt-secret-for-vitest";
 // Tests in faceDetectionService.unit.test.js manage this env var themselves.
 // Tests in faceDetectionService.integration.test.js delete it in beforeAll.
 process.env.SKIP_FACE_DETECTION = "true";
+// Bypass NSFW moderation in all non-ML tests, same rationale as above.
+// Tests in nsfwModerationService.unit.test.js manage this env var themselves.
+// Tests in nsfwModerationService.integration.test.js delete it in beforeAll.
+process.env.SKIP_NSFW_MODERATION = "true";
 
 let mongoServer;
 

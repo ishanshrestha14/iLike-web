@@ -104,6 +104,16 @@ const profileSchema = new mongoose.Schema(
       default: false,
       index: true,
     },
+    /**
+     * Set to true once every uploaded profile photo has passed server-side
+     * NSFW moderation. Used by admin review and match-ranking pipelines to
+     * surface only moderation-cleared profiles.
+     */
+    photosModerated: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
   },
   {
     timestamps: true,
