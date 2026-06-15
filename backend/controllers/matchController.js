@@ -5,6 +5,38 @@ import Block from "../models/Block.js";
 import { isValidObjectId } from "../utils/validate.js";
 import Notification from "../models/Notification.js";
 import { createNotification } from "../utils/notificationHelper.js";
+import {
+  getCached,
+  setCached,
+  invalidatePattern,
+} from "../services/cacheService.js";
+
+/** TTL for the potential-matches feed. Short: the candidate pool shifts as
+ *  users swipe, so we bound staleness while absorbing rapid re-fetches. */
+const POTENTIAL_MATCHES_TTL = 60;
+
+/** Builds the cache key namespace for a user's potential-matches feed. */
+const potentialMatchesKey = (userId, limit, skip) =>
+  `matches:potential:${userId}:${limit}:${skip}`;
+
+/** Pattern matching every paginated potential-matches entry for a user. */
+const potentialMatchesPattern = (userId) => `matches:potential:${userId}:*`;
+
+/**
+ * Invalidates the potential-matches cache for both sides of a swipe. The
+ * actor's feed changes (the target is now excluded); the target's feed can
+ * change too once exclusion sets shift, so we clear both.
+ *
+ * @param {string} userIdA
+ * @param {string} userIdB
+ * @returns {Promise<void>}
+ */
+async function invalidatePotentialMatches(userIdA, userIdB) {
+  await Promise.all([
+    invalidatePattern(potentialMatchesPattern(userIdA)),
+    invalidatePattern(potentialMatchesPattern(userIdB)),
+  ]);
+}
 
 // @desc    Get potential matches for a user
 // @route   GET /api/matches/potential
@@ -12,6 +44,22 @@ import { createNotification } from "../utils/notificationHelper.js";
 export const getPotentialMatches = async (req, res) => {
   try {
     const currentUserId = req.userId;
+
+    // Pagination params double as part of the cache key.
+    const limit = Math.min(parseInt(req.query.limit) || 20, 50);
+    const skip = parseInt(req.query.skip) || 0;
+
+    // Cache-aside: serve the warm feed from Redis, skipping all DB work.
+    const cacheKey = potentialMatchesKey(currentUserId, limit, skip);
+    const cached = await getCached(cacheKey);
+    if (cached) {
+      return res.status(200).json({
+        success: true,
+        data: cached,
+        count: cached.length,
+        cached: true,
+      });
+    }
 
     // Get current user's profile and preferences
     const currentProfile = await Profile.findOne({ userId: currentUserId });
@@ -57,9 +105,6 @@ export const getPotentialMatches = async (req, res) => {
     }
 
     // Get potential matches with pagination
-    const limit = Math.min(parseInt(req.query.limit) || 20, 50);
-    const skip = parseInt(req.query.skip) || 0;
-
     const potentialMatches = await Profile.find(query)
       .populate("userId", "name email")
       .skip(skip)
@@ -80,6 +125,9 @@ export const getPotentialMatches = async (req, res) => {
       intentions: profile.intentions,
       height: profile.height,
     }));
+
+    // Populate the cache for subsequent rapid re-fetches of this page.
+    await setCached(cacheKey, matches, POTENTIAL_MATCHES_TTL);
 
     res.status(200).json({
       success: true,
@@ -203,6 +251,9 @@ export const likeUser = async (req, res) => {
       });
     }
 
+    // The target is now excluded from the actor's feed; clear both sides.
+    await invalidatePotentialMatches(likerId, likedId);
+
     res.status(200).json({
       success: true,
       message: isMatch ? "It's a match! 🎉" : "Like sent successfully",
@@ -251,6 +302,9 @@ export const dislikeUser = async (req, res) => {
         { isMatch: false, matchedAt: null },
       );
     }
+
+    // Removing the like changes the actor's exclusion set; clear both sides.
+    await invalidatePotentialMatches(likerId, likedId);
 
     res.status(200).json({
       success: true,
@@ -466,6 +520,9 @@ export const undoLastSwipe = async (req, res) => {
     }
 
     await Match.findByIdAndDelete(recentMatch._id);
+
+    // The undone user can reappear in the feed; clear both sides.
+    await invalidatePotentialMatches(currentUserId, likedId);
 
     res.status(200).json({
       success: true,
