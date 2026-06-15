@@ -3,6 +3,8 @@ import User from "../models/user.js";
 import { generateAccessToken } from "./userController.js";
 import { isValidPhotoUrl } from "../utils/validate.js";
 import { uploadToCloudinary } from "../utils/cloudinaryConfig.js";
+import { detectFace } from "../services/faceDetectionService.js";
+import { moderateImage } from "../services/nsfwModerationService.js";
 
 // @desc    Get current user's profile
 // @route   GET /api/profile/me
@@ -88,6 +90,37 @@ export const setupProfile = async (req, res) => {
       });
     }
 
+    // Gate: every uploaded photo must (a) contain a detectable face and
+    // (b) pass NSFW moderation before we spend a Cloudinary upload on it.
+    // Both checks for all files run in parallel for speed.
+    if (req.files && req.files.length > 0) {
+      const checks = await Promise.all(
+        req.files.map(async (file) => {
+          const [hasFace, moderation] = await Promise.all([
+            detectFace(file.buffer),
+            moderateImage(file.buffer),
+          ]);
+          return { hasFace, moderation };
+        })
+      );
+
+      const noFaceIdx = checks.findIndex((c) => !c.hasFace);
+      if (noFaceIdx !== -1) {
+        return res.status(400).json({
+          success: false,
+          message: `Photo ${noFaceIdx + 1} does not contain a clearly visible face. Please upload a well-lit photo showing your face.`,
+        });
+      }
+
+      const unsafeIdx = checks.findIndex((c) => !c.moderation.isSafe);
+      if (unsafeIdx !== -1) {
+        return res.status(400).json({
+          success: false,
+          message: `Photo ${unsafeIdx + 1} appears to contain explicit content and cannot be uploaded. Please choose an appropriate photo.`,
+        });
+      }
+    }
+
     // Upload files to Cloudinary
     const uploadedPhotos = [];
     if (req.files && req.files.length > 0) {
@@ -124,6 +157,10 @@ export const setupProfile = async (req, res) => {
       photoUrls,
       profilePictureUrl: photoUrls[0] || null,
       isProfileComplete: true,
+      // At least one photo passed face detection above.
+      faceVerified: true,
+      // All uploaded photos passed NSFW moderation above.
+      photosModerated: true,
     };
 
     // Find and update or create profile
@@ -271,13 +308,30 @@ export const updateProfilePicture = async (req, res) => {
       });
     }
 
+    const [hasFace, moderation] = await Promise.all([
+      detectFace(req.file.buffer),
+      moderateImage(req.file.buffer),
+    ]);
+    if (!hasFace) {
+      return res.status(400).json({
+        success: false,
+        message: "No face detected. Please upload a clear, well-lit photo of your face.",
+      });
+    }
+    if (!moderation.isSafe) {
+      return res.status(400).json({
+        success: false,
+        message: "This photo appears to contain explicit content and cannot be uploaded. Please choose an appropriate photo.",
+      });
+    }
+
     const result = await uploadToCloudinary(req.file.buffer);
     const profilePictureUrl = result.secure_url;
 
-    // Update profile with new profile picture
+    // Update profile with new profile picture; mark as face-verified + moderated.
     const profile = await Profile.findOneAndUpdate(
       { userId: req.userId },
-      { $set: { profilePictureUrl } },
+      { $set: { profilePictureUrl, faceVerified: true, photosModerated: true } },
       { new: true }
     );
 
@@ -310,6 +364,23 @@ export const uploadIndividualPhoto = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "No file uploaded",
+      });
+    }
+
+    const [hasFace, moderation] = await Promise.all([
+      detectFace(req.file.buffer),
+      moderateImage(req.file.buffer),
+    ]);
+    if (!hasFace) {
+      return res.status(400).json({
+        success: false,
+        message: "No face detected. Please upload a clear, well-lit photo of your face.",
+      });
+    }
+    if (!moderation.isSafe) {
+      return res.status(400).json({
+        success: false,
+        message: "This photo appears to contain explicit content and cannot be uploaded. Please choose an appropriate photo.",
       });
     }
 

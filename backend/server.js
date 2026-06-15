@@ -8,6 +8,9 @@ import { createServer } from "http";
 import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import SocketServer from "./socket/socketServer.js";
+import { preloadFaceDetectionModel } from "./services/faceDetectionService.js";
+import { preloadNsfwModel } from "./services/nsfwModerationService.js";
+import { getRedisClient } from "./utils/redisClient.js";
 
 // Load environment variables
 dotenv.config();
@@ -119,6 +122,11 @@ if (process.env.NODE_ENV !== "test") {
   try {
     await initServer();
     await connectDB();
+    await preloadFaceDetectionModel();
+    await preloadNsfwModel();
+
+    // Initialise Redis (non-fatal): caching degrades to DB if unavailable.
+    getRedisClient();
 
     const server = createServer(app);
 

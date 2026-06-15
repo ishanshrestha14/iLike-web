@@ -1,12 +1,32 @@
 import { Server } from "socket.io";
+import { createAdapter } from "@socket.io/redis-adapter";
 import { authenticateSocket } from "../utils/authUtils.js";
 import Chat from "../models/Chat.js";
 import Message from "../models/Message.js";
 import User from "../models/User.js";
 import Profile from "../models/Profile.js";
 import { createNotification } from "../utils/notificationHelper.js";
+import { createAdapterClients } from "../utils/redisClient.js";
 
 let instance = null;
+
+/**
+ * Attaches the Redis adapter to a Socket.IO server when Redis is configured,
+ * so room and broadcast emits fan out across all backend instances via pub/sub.
+ * No-ops (returns false) when Redis is unavailable — the server then runs
+ * single-instance with Socket.IO's default in-memory adapter.
+ *
+ * @param {import("socket.io").Server} io
+ * @returns {boolean} true if the Redis adapter was attached.
+ */
+export function attachRedisAdapter(io) {
+  const clients = createAdapterClients();
+  if (!clients) return false;
+
+  io.adapter(createAdapter(clients.pubClient, clients.subClient));
+  console.log("[Socket.IO] Redis adapter attached — multi-instance enabled.");
+  return true;
+}
 
 class SocketServer {
   constructor(server) {
@@ -21,6 +41,10 @@ class SocketServer {
 
     this.userSockets = new Map(); // userId -> socketId
     this.socketUsers = new Map(); // socketId -> userId
+
+    // Enable cross-instance fan-out when Redis is configured; otherwise the
+    // default in-memory adapter is used (single instance).
+    attachRedisAdapter(this.io);
 
     this.setupMiddleware();
     this.setupEventHandlers();
@@ -278,6 +302,11 @@ class SocketServer {
   }
 
   // Utility methods
+  //
+  // NOTE: userSockets is a LOCAL (per-instance) map. getUserSocket/isUserOnline
+  // are only accurate for sockets connected to THIS instance — they are not
+  // cluster-wide. Accurate cross-instance presence would need a shared store
+  // (future work). Neither is used outside this module today.
   getUserSocket(userId) {
     return this.userSockets.get(userId);
   }
@@ -286,12 +315,12 @@ class SocketServer {
     return this.userSockets.has(userId);
   }
 
-  // Send notification to specific user
+  // Send an event to all of a user's sockets, wherever they are connected.
+  // Emits to the user_{id} room (every socket joins it on connect), so the
+  // Redis adapter routes the event to whichever instance holds the socket —
+  // no per-instance socket map required. Works single- and multi-instance.
   sendToUser(userId, event, data) {
-    const socketId = this.userSockets.get(userId);
-    if (socketId) {
-      this.io.to(socketId).emit(event, data);
-    }
+    this.io.to(`user_${userId}`).emit(event, data);
   }
 }
 
