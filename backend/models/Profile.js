@@ -94,6 +94,16 @@ const profileSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    /**
+     * Set to true once at least one profile photo has passed server-side
+     * face detection. Used by admin review and match-ranking pipelines to
+     * surface only verified profiles.
+     */
+    faceVerified: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
   },
   {
     timestamps: true,

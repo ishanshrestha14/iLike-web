@@ -8,6 +8,7 @@ import { createServer } from "http";
 import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import SocketServer from "./socket/socketServer.js";
+import { preloadFaceDetectionModel } from "./services/faceDetectionService.js";
 
 // Load environment variables
 dotenv.config();
@@ -119,6 +120,7 @@ if (process.env.NODE_ENV !== "test") {
   try {
     await initServer();
     await connectDB();
+    await preloadFaceDetectionModel();
 
     const server = createServer(app);
 
