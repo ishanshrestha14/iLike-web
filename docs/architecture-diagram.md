@@ -58,10 +58,11 @@ graph TB
     CTRL -->|Location Services| GEO
 
     %% Styling
-    classDef frontend fill:#ff9999,stroke:#ff0000,stroke-width:2px
-    classDef backend fill:#99ff99,stroke:#00ff00,stroke-width:2px
-    classDef database fill:#9999ff,stroke:#0000ff,stroke-width:2px
-    classDef external fill:#ffff99,stroke:#ffff00,stroke-width:2px
+    classDef frontend fill:#1E3A8A,stroke:#60A5FA,stroke-width:2px,color:#BFDBFE
+    classDef backend fill:#14532D,stroke:#4ADE80,stroke-width:2px,color:#BBF7D0
+    classDef database fill:#4C1D95,stroke:#A78BFA,stroke-width:2px,color:#DDD6FE
+    classDef external fill:#78350F,stroke:#FBBF24,stroke-width:2px,color:#FDE68A
+
 
     class UI,RC,RS,WS frontend
     class API,MC,CTRL,WSS,AUTH backend
@@ -144,8 +145,3 @@ graph TB
    - Encrypted connections
    - Field-level encryption
    - Access control
-
-4. **External Services**:
-   - Secure API keys
-   - S3 bucket policies
-   - HTTPS endpoints

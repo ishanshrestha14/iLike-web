@@ -60,6 +60,16 @@ const MODELS_PATH = path.resolve(
 const SCORE_THRESHOLD = 0.5;
 
 /**
+ * Image is resized to INPUT_SIZE×INPUT_SIZE before detection (must be a
+ * multiple of 32). TinyFaceDetector's default of 416 downsamples large photos
+ * so aggressively that small faces — e.g. people in a group/full-body shot —
+ * fall below the detector's resolution and get missed, wrongly rejecting a
+ * legitimate upload. 608 restores recall on those photos at a modest CPU cost
+ * per upload (uploads are infrequent, so the latency trade-off is acceptable).
+ */
+const INPUT_SIZE = 608;
+
+/**
  * Lazily-loaded module references.
  * Populated on first real detectFace() call; null until then.
  * This avoids Vite resolving native packages at transform time — which would
@@ -135,6 +145,7 @@ export async function detectFace(buffer) {
 
   try {
     const options = new _faceapi.TinyFaceDetectorOptions({
+      inputSize: INPUT_SIZE,
       scoreThreshold: SCORE_THRESHOLD,
     });
     const detections = await _faceapi.detectAllFaces(tensor, options);
