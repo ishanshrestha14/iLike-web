@@ -1,20 +1,15 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { AnimatePresence, motion } from "framer-motion";
-import {
-  AlertCircle,
-  HeartCrack,
-  MessageCircle,
-  RefreshCw,
-  Sparkles,
-} from "lucide-react";
+import { AlertCircle, HeartCrack, RefreshCw, Sparkles } from "lucide-react";
 
 import MainLayout from "@/layouts/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SwipeDeck } from "@/components/swipe/SwipeDeck";
 import type { SwipeDirection } from "@/components/swipe/SwipeCard";
-import { popIn } from "@/lib/motion";
+import { MatchCelebration } from "@/components/match/MatchCelebration";
+import { useAuth } from "@/context/AuthContext";
+import { getProfile } from "@/services/profileService";
 import {
   getPotentialMatches,
   likeUser,
@@ -25,14 +20,25 @@ import type { User } from "@/services/matchService";
 
 const ExplorePage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [currentUserIndex, setCurrentUserIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [matchedUser, setMatchedUser] = useState<User | null>(null);
+  const [myAvatar, setMyAvatar] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [lastSwipeTime, setLastSwipeTime] = useState<number | null>(null);
+
+  // Fetch the current user's photo once so the match celebration can show it.
+  useEffect(() => {
+    getProfile()
+      .then((res) => {
+        if (res.success && res.data) setMyAvatar(res.data.profilePictureUrl);
+      })
+      .catch(() => {});
+  }, []);
 
   const loadPotentialMatches = useCallback(async () => {
     try {
@@ -195,55 +201,18 @@ const ExplorePage: React.FC = () => {
         />
       </div>
 
-      {/* Match celebration modal */}
-      <AnimatePresence>
-        {matchedUser && (
-          <motion.div
-            className="fixed inset-0 z-modal flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={handleMatchClose}
-          >
-            <motion.div
-              variants={popIn}
-              initial="hidden"
-              animate="show"
-              exit="exit"
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-sm overflow-hidden rounded-3xl bg-card shadow-xl"
-            >
-              <div className="bg-gradient-brand px-6 py-10 text-center text-white">
-                <p className="font-display text-4xl font-bold drop-shadow">
-                  It's a Match!
-                </p>
-                <p className="mt-2 text-white/90">
-                  You and {matchedUser.name} liked each other.
-                </p>
-              </div>
-              <div className="flex gap-3 p-5">
-                <Button
-                  variant="secondary"
-                  className="flex-1"
-                  onClick={handleMatchClose}
-                >
-                  Keep swiping
-                </Button>
-                <Button
-                  variant="brand"
-                  className="flex-1"
-                  onClick={() => {
-                    handleMatchClose();
-                    navigate(`/chat/${matchedUser.id}`);
-                  }}
-                >
-                  <MessageCircle className="size-4" /> Say hi
-                </Button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Match celebration */}
+      <MatchCelebration
+        open={matchedUser !== null}
+        currentUser={{ name: user?.name, avatar: myAvatar }}
+        matchedUser={matchedUser}
+        onClose={handleMatchClose}
+        onSendMessage={() => {
+          const id = matchedUser?.id;
+          handleMatchClose();
+          if (id) navigate(`/chat/${id}`);
+        }}
+      />
     </MainLayout>
   );
 };
