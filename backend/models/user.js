@@ -63,6 +63,9 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Create and export the User model
-const User = mongoose.model('User', userSchema);
+// Create and export the User model.
+// Guard against double-registration: the codebase imports this file under two
+// casings ("user.js" / "User.js") which ESM loads twice on case-insensitive
+// filesystems, otherwise throwing OverwriteModelError.
+const User = mongoose.models.User || mongoose.model('User', userSchema);
 export default User;
