@@ -1,79 +1,82 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@/tests/test-utils";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+
 import ProfilePictureUpload from "@/components/ProfilePictureUpload";
+import { uploadProfilePicture } from "@/services/profileService";
 
-const createFile = (name: string, type: string) => {
-  return new File(["test"], name, { type });
-};
+vi.mock("@/services/profileService", () => ({
+  uploadProfilePicture: vi.fn(),
+}));
+vi.mock("react-toastify", () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}));
 
-describe("ProfilePictureUpload Component", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+const file = new File(["x"], "p.jpg", { type: "image/jpeg" });
+const fileInput = (c: HTMLElement) =>
+  c.querySelector('input[type="file"]') as HTMLInputElement;
 
-  it("should render upload button", () => {
-    render(<ProfilePictureUpload />);
+beforeEach(() => vi.clearAllMocks());
+
+describe("ProfilePictureUpload", () => {
+  it("shows 'Add Photo' when there is no current picture", () => {
+    render(
+      <ProfilePictureUpload currentPictureUrl={null} onUploadSuccess={vi.fn()} />
+    );
     expect(
       screen.getByRole("button", { name: /add photo/i })
     ).toBeInTheDocument();
   });
 
-  it("should handle valid image upload", () => {
-    const onUpload = vi.fn();
-    render(<ProfilePictureUpload onUpload={onUpload} />);
-
-    const file = createFile("test.jpg", "image/jpeg");
-    const input = screen.getByTestId("file-input");
-
-    fireEvent.change(input, { target: { files: [file] } });
-
-    expect(onUpload).toHaveBeenCalledWith(file);
+  it("renders the current picture when provided", () => {
+    render(
+      <ProfilePictureUpload
+        currentPictureUrl="/me.jpg"
+        onUploadSuccess={vi.fn()}
+      />
+    );
+    expect(screen.getByAltText("Profile")).toHaveAttribute("src", "/me.jpg");
   });
 
-  it("should show error for invalid file type", () => {
-    const onError = vi.fn();
-    render(<ProfilePictureUpload onError={onError} />);
+  it("uploads the selected file and reports the new URL", async () => {
+    vi.mocked(uploadProfilePicture).mockResolvedValue("/new.jpg");
+    const onUploadSuccess = vi.fn();
+    const { container } = render(
+      <ProfilePictureUpload
+        currentPictureUrl={null}
+        onUploadSuccess={onUploadSuccess}
+      />
+    );
 
-    const file = createFile("test.txt", "text/plain");
-    const input = screen.getByTestId("file-input");
+    fireEvent.change(fileInput(container), { target: { files: [file] } });
 
-    fireEvent.change(input, { target: { files: [file] } });
-
-    expect(onError).toHaveBeenCalledWith("Please select an image file");
+    await waitFor(() =>
+      expect(onUploadSuccess).toHaveBeenCalledWith("/new.jpg")
+    );
+    expect(uploadProfilePicture).toHaveBeenCalledWith(file);
   });
 
-  it("should show error for large file size", () => {
-    const onError = vi.fn();
-    render(<ProfilePictureUpload onError={onError} maxSize={1} />);
+  it("does not report success when the upload fails", async () => {
+    vi.mocked(uploadProfilePicture).mockRejectedValue(new Error("nope"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const onUploadSuccess = vi.fn();
+    const { container } = render(
+      <ProfilePictureUpload
+        currentPictureUrl={null}
+        onUploadSuccess={onUploadSuccess}
+      />
+    );
 
-    const largeFile = new File(["x".repeat(1024 * 1024 * 2)], "large.jpg", {
-      type: "image/jpeg",
-    });
-    const input = screen.getByTestId("file-input");
+    fireEvent.change(fileInput(container), { target: { files: [file] } });
 
-    fireEvent.change(input, { target: { files: [largeFile] } });
-
-    expect(onError).toHaveBeenCalledWith("File size must be less than 1MB");
+    await waitFor(() => expect(uploadProfilePicture).toHaveBeenCalled());
+    expect(onUploadSuccess).not.toHaveBeenCalled();
   });
 
-  it("should show loading state during upload", () => {
-    render(<ProfilePictureUpload isUploading={true} />);
-    expect(screen.getByText(/uploading/i)).toBeInTheDocument();
-    expect(screen.getByRole("button")).toBeDisabled();
-  });
-
-  it("should show preview of selected image", () => {
-    const file = createFile("test.jpg", "image/jpeg");
-    const fakeUrl = "blob:test-url";
-    vi.spyOn(URL, "createObjectURL").mockReturnValue(fakeUrl);
-
-    render(<ProfilePictureUpload />);
-    const input = screen.getByTestId("file-input");
-    fireEvent.change(input, { target: { files: [file] } });
-
-    const preview = screen.getByRole("img");
-    expect(preview).toHaveAttribute("src", fakeUrl);
-
-    URL.createObjectURL.mockRestore();
+  it("ignores an empty file selection", () => {
+    const { container } = render(
+      <ProfilePictureUpload currentPictureUrl={null} onUploadSuccess={vi.fn()} />
+    );
+    fireEvent.change(fileInput(container), { target: { files: [] } });
+    expect(uploadProfilePicture).not.toHaveBeenCalled();
   });
 });

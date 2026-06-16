@@ -600,20 +600,20 @@ const ChatPage: React.FC = () => {
                             <MoreVertical className="w-5 h-5" />
                           </button>
                           {showMenu && (
-                            <div className="absolute right-0 top-10 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1">
+                            <div className="absolute right-0 top-10 z-popover w-48 rounded-lg border border-border bg-popover py-1 shadow-lg">
                               <button
                                 onClick={() => {
                                   setShowReportModal(true);
                                   setShowMenu(false);
                                 }}
-                                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                className="flex w-full cursor-pointer items-center gap-2 px-4 py-2 text-left text-sm text-popover-foreground transition-colors hover:bg-accent"
                               >
                                 <Flag className="w-4 h-4" />
                                 Report User
                               </button>
                               <button
                                 onClick={handleBlock}
-                                className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                className="flex w-full cursor-pointer items-center gap-2 px-4 py-2 text-left text-sm text-destructive transition-colors hover:bg-destructive/10"
                               >
                                 <ShieldBan className="w-4 h-4" />
                                 Block User
@@ -714,13 +714,13 @@ const ChatPage: React.FC = () => {
 
         {/* Report Modal */}
         {showReportModal && selectedChat && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">
+          <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl">
+              <h3 className="mb-4 font-display text-lg font-semibold text-foreground">
                 Report {selectedChat.otherUserName}
               </h3>
 
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="mb-1 block text-sm font-medium text-foreground">
                 Reason
               </label>
               <select
@@ -728,7 +728,7 @@ const ChatPage: React.FC = () => {
                 onChange={(e) =>
                   setReportReason(e.target.value as ReportReason)
                 }
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-pink-500"
+                className="mb-4 w-full rounded-lg border border-input bg-background px-3 py-2 text-foreground focus:border-transparent focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 <option value="inappropriate">Inappropriate content</option>
                 <option value="spam">Spam</option>
@@ -737,14 +737,14 @@ const ChatPage: React.FC = () => {
                 <option value="other">Other</option>
               </select>
 
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="mb-1 block text-sm font-medium text-foreground">
                 Details (optional)
               </label>
               <textarea
                 value={reportDescription}
                 onChange={(e) => setReportDescription(e.target.value)}
-                placeholder="Describe the issue..."
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 mb-4 resize-none focus:outline-none focus:ring-2 focus:ring-pink-500"
+                placeholder="Describe the issue…"
+                className="mb-4 w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-foreground placeholder:text-muted-foreground focus:border-transparent focus:outline-none focus:ring-2 focus:ring-ring"
                 rows={3}
                 maxLength={500}
               />
@@ -755,13 +755,13 @@ const ChatPage: React.FC = () => {
                     setShowReportModal(false);
                     setReportDescription("");
                   }}
-                  className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+                  className="flex-1 cursor-pointer rounded-xl bg-secondary px-4 py-2 font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleReport}
-                  className="flex-1 bg-red-500 text-white py-2 px-4 rounded-xl font-medium hover:bg-red-600 transition-colors"
+                  className="flex-1 cursor-pointer rounded-xl bg-destructive px-4 py-2 font-medium text-destructive-foreground transition-colors hover:bg-destructive/90"
                 >
                   Submit Report
                 </button>
