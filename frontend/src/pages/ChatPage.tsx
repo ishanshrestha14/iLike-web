@@ -17,82 +17,16 @@ import { useAuth } from "@/context/AuthContext";
 import * as chatService from "@/services/chatService";
 import type { ChatSummary, ChatMessage } from "@/services/chatService";
 import { Avatar } from "@/components/ui/avatar";
+import { ConversationItem } from "@/components/chat/ConversationItem";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import * as socketService from "@/services/socketService";
 import * as blockReportService from "@/services/blockReportService";
 import type { ReportReason } from "@/services/blockReportService";
 import { SERVER_BASE_URL } from "@/services/api";
 import { toast } from "react-toastify";
-
-const ConversationItem = React.memo(
-  ({
-    chat,
-    isSelected,
-    isOnline,
-    onClick,
-    getProfilePicUrl,
-    formatConversationTime,
-  }: {
-    chat: ChatSummary;
-    isSelected: boolean;
-    isOnline: boolean;
-    onClick: () => void;
-    getProfilePicUrl: (chat: ChatSummary) => string | undefined;
-    formatConversationTime: (date: string | Date) => string;
-  }) => {
-    const picUrl = getProfilePicUrl(chat);
-    return (
-      <div
-        onClick={onClick}
-        className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors border-b border-gray-100 ${
-          isSelected ? "bg-pink-50 border-pink-200" : ""
-        }`}
-      >
-        <div className="flex items-center space-x-3">
-          <div className="relative">
-            {picUrl ? (
-              <img
-                src={picUrl}
-                alt={chat.otherUserName}
-                className="w-12 h-12 rounded-full object-cover"
-              />
-            ) : (
-              <div className="w-12 h-12 rounded-full bg-gradient-to-r from-pink-400 to-red-400 flex items-center justify-center text-white font-bold text-lg">
-                {chat.otherUserName.charAt(0)}
-              </div>
-            )}
-            {isOnline && (
-              <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></div>
-            )}
-          </div>
-
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-800 truncate">
-                {chat.otherUserName}
-              </h3>
-              <span className="text-xs text-gray-500">
-                {formatConversationTime(chat.lastMessageTime)}
-              </span>
-            </div>
-            <p className="text-sm text-gray-600 truncate mt-1">
-              {chat.isLastMessageFromMe && "You: "}
-              {chat.lastMessage}
-            </p>
-          </div>
-
-          {chat.unreadCount > 0 && (
-            <div className="bg-pink-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-              {chat.unreadCount}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-);
 
 const ChatPage: React.FC = () => {
   const { matchId } = useParams<{ matchId: string }>();
@@ -541,14 +475,19 @@ const ChatPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-red-50">
+      <div className="min-h-screen bg-muted/30">
         <Navbar onLogout={() => {}} />
         <main className="h-[calc(100vh-80px)] p-0">
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-pink-500 mx-auto mb-4"></div>
-              <p className="text-gray-600">Loading conversations...</p>
-            </div>
+          <div className="h-full w-80 space-y-1 border-r border-border bg-card p-4">
+            {Array.from({ length: 7 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 p-2">
+                <Skeleton className="size-12 rounded-full" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-3.5 w-1/3" />
+                  <Skeleton className="h-3 w-2/3" />
+                </div>
+              </div>
+            ))}
           </div>
         </main>
       </div>
@@ -556,36 +495,43 @@ const ChatPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-red-50">
+    <div className="min-h-screen bg-muted/30">
       <Navbar onLogout={() => {}} />
       <main className="h-[calc(100vh-80px)] p-0">
-        <div className="h-full bg-gray-50">
-          <div className="flex h-full bg-white rounded-2xl shadow-lg overflow-hidden">
+        <div className="h-full bg-background">
+          <div className="flex h-full overflow-hidden rounded-2xl border border-border bg-card shadow-lg">
             {/* Sidebar - Conversations List */}
-            <div className="w-80 border-r border-gray-200 bg-white flex flex-col">
-              <div className="p-4 border-b border-gray-200">
-                <h1 className="text-xl font-bold text-gray-800">Messages</h1>
+            <div className="flex w-80 flex-col border-r border-border bg-card">
+              <div className="border-b border-border p-4">
+                <h1 className="font-display text-xl font-bold text-foreground">
+                  Messages
+                </h1>
               </div>
 
-              <div className="p-4 border-b border-gray-200">
+              <div className="border-b border-border p-4">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   <input
                     type="text"
-                    placeholder="Search conversations..."
+                    placeholder="Search conversations…"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+                    className="w-full rounded-lg border border-input bg-background py-2 pl-10 pr-4 text-foreground placeholder:text-muted-foreground focus:border-transparent focus:outline-none focus:ring-2 focus:ring-ring"
                   />
                 </div>
               </div>
 
               <div className="flex-1 overflow-y-auto">
                 {filteredConversations.length === 0 ? (
-                  <div className="p-4 text-center text-gray-500">
-                    {searchQuery
-                      ? "No conversations found"
-                      : "No conversations yet. Match with someone to start chatting!"}
+                  <div className="flex flex-col items-center px-6 py-12 text-center">
+                    <div className="grid size-14 place-items-center rounded-full bg-accent">
+                      <MessageCircle className="size-7 text-brand" />
+                    </div>
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      {searchQuery
+                        ? "No conversations found"
+                        : "No conversations yet. Match with someone to start chatting!"}
+                    </p>
                   </div>
                 ) : (
                   filteredConversations.map((chat) => (
