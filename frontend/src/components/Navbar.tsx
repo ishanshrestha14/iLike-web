@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   Heart,
   Bell,
@@ -12,201 +13,193 @@ import {
   Users,
   MessageCircle,
 } from "lucide-react";
+
 import { useAuth } from "@/context/AuthContext";
 import { getUnreadCount } from "@/services/notificationService";
 import { connect, onNotificationCount } from "@/services/socketService";
+import { Avatar } from "@/components/ui/avatar";
+import { BottomNav } from "@/components/BottomNav";
+import { popIn } from "@/lib/motion";
+import { cn } from "@/lib/utils";
 
 interface NavbarProps {
   onLogout: () => void;
 }
+
+const NAV_LINKS = [
+  { name: "Home", path: "/home", icon: Home },
+  { name: "Explore", path: "/explore", icon: Search },
+  { name: "Matches", path: "/matches", icon: Users },
+  { name: "Chat", path: "/chat", icon: MessageCircle },
+];
 
 const Navbar: React.FC<NavbarProps> = ({ onLogout }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
   const location = useLocation();
   const { user } = useAuth();
+  const reduce = useReducedMotion();
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown when clicking outside
+  // Close dropdown on outside click + Escape.
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
+    const onClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setIsProfileOpen(false);
       }
     };
-
-    document.addEventListener("mousedown", handleClickOutside);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsProfileOpen(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
     };
   }, []);
 
-  // Fetch real unread count + keep it live via socket
+  // Live unread notification count.
   useEffect(() => {
-    getUnreadCount()
-      .then(setNotificationCount)
-      .catch(() => {});
-
+    getUnreadCount().then(setNotificationCount).catch(() => {});
     try {
       connect();
     } catch {
       return;
     }
-
     const unsub = onNotificationCount(({ count }) => setNotificationCount(count));
     return () => unsub();
   }, []);
 
-  const navLinks = [
-    { name: "Home", path: "/home", icon: Home },
-    { name: "Explore", path: "/explore", icon: Search },
-    { name: "Matches", path: "/matches", icon: Users },
-    { name: "Chat", path: "/chat", icon: MessageCircle },
-  ];
-
-  const isActiveLink = (path: string) => {
-    return location.pathname === path;
-  };
-
-  const handleProfileClick = () => {
-    setIsProfileOpen(!isProfileOpen);
-  };
-
-  const handleLogoutClick = () => {
-    setIsProfileOpen(false);
-    onLogout();
-  };
+  const isActive = (path: string) =>
+    location.pathname === path || location.pathname.startsWith(`${path}/`);
 
   return (
-    <header className="bg-white/80 backdrop-blur-lg border-b border-pink-100 sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
+    <header className="sticky top-0 z-header border-b border-border bg-background/80 backdrop-blur-lg">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex h-16 items-center justify-between">
           {/* Logo */}
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-pink-500 to-red-500 rounded-full flex items-center justify-center">
-              <Heart className="w-6 h-6 text-white fill-current" />
+          <Link to="/home" className="flex items-center gap-2">
+            <div className="grid size-9 place-items-center rounded-full bg-gradient-brand shadow-brand">
+              <Heart className="size-5 fill-current text-white" />
             </div>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-pink-600 to-red-600 bg-clip-text text-transparent">
+            <span className="text-gradient-brand font-display text-2xl font-bold">
               iLike
-            </h1>
-          </div>
+            </span>
+          </Link>
 
-          {/* Navigation */}
-          <nav className="hidden md:flex items-center space-x-8">
-            {navLinks.map((link) => {
+          {/* Desktop nav */}
+          <nav className="hidden items-center gap-1 md:flex" aria-label="Primary">
+            {NAV_LINKS.map((link) => {
               const Icon = link.icon;
+              const active = isActive(link.path);
               return (
                 <Link
                   key={link.name}
                   to={link.path}
-                  className={`flex items-center space-x-2 px-3 py-2 rounded-lg font-medium transition-all ${
-                    isActiveLink(link.path)
-                      ? "text-pink-600 bg-pink-50"
-                      : "text-gray-600 hover:text-pink-600 hover:bg-pink-50"
-                  }`}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "relative flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    active
+                      ? "text-brand"
+                      : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                  )}
                 >
-                  <Icon className="w-4 h-4" />
+                  <Icon className="size-4" />
                   <span>{link.name}</span>
+                  {active && (
+                    <motion.span
+                      layoutId={reduce ? undefined : "navbar-active"}
+                      className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-brand"
+                      transition={{ type: "spring", stiffness: 500, damping: 32 }}
+                    />
+                  )}
                 </Link>
               );
             })}
           </nav>
 
-          {/* User Actions */}
-          <div className="flex items-center space-x-4">
-            {/* Notifications */}
-            <div className="relative">
-              <Link
-                to="/notifications"
-                className="inline-block p-2 text-gray-600 hover:text-pink-600 hover:bg-pink-50 rounded-full transition-all relative"
-              >
-                <Bell className="w-5 h-5" />
-                {notificationCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                    {notificationCount > 9 ? "9+" : notificationCount}
-                  </span>
-                )}
-              </Link>
-            </div>
+          {/* Actions */}
+          <div className="flex items-center gap-2">
+            <Link
+              to="/notifications"
+              aria-label="Notifications"
+              className="relative rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <Bell className="size-5" />
+              {notificationCount > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 grid size-5 place-items-center rounded-full bg-brand text-xs font-semibold text-white nums-tabular">
+                  {notificationCount > 9 ? "9+" : notificationCount}
+                </span>
+              )}
+            </Link>
 
-            {/* Profile Dropdown */}
             <div className="relative" ref={dropdownRef}>
               <button
-                onClick={handleProfileClick}
-                className="flex items-center space-x-2 p-2 text-gray-600 hover:text-pink-600 hover:bg-pink-50 rounded-lg transition-all"
+                onClick={() => setIsProfileOpen((v) => !v)}
+                aria-haspopup="menu"
+                aria-expanded={isProfileOpen}
+                className="flex cursor-pointer items-center gap-2 rounded-full p-1 pr-2 text-muted-foreground transition-colors hover:bg-accent"
               >
-                <div className="w-8 h-8 bg-gradient-to-r from-pink-400 to-purple-400 rounded-full flex items-center justify-center">
-                  <User className="w-4 h-4 text-white" />
-                </div>
-                <span className="hidden sm:block font-medium">
+                <Avatar name={user?.name} size="sm" />
+                <span className="hidden font-medium text-foreground sm:block">
                   {user?.name || "User"}
                 </span>
                 <ChevronDown
-                  className={`w-4 h-4 transition-transform ${
-                    isProfileOpen ? "rotate-180" : ""
-                  }`}
+                  className={cn(
+                    "size-4 transition-transform",
+                    isProfileOpen && "rotate-180"
+                  )}
                 />
               </button>
 
-              {/* Profile Dropdown Menu */}
-              {isProfileOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-100 py-2 z-50">
-                  <Link
-                    to="/profile"
-                    className="flex items-center space-x-3 px-4 py-2 text-gray-700 hover:bg-pink-50 transition-colors"
-                    onClick={() => setIsProfileOpen(false)}
+              <AnimatePresence>
+                {isProfileOpen && (
+                  <motion.div
+                    role="menu"
+                    variants={popIn}
+                    initial="hidden"
+                    animate="show"
+                    exit="exit"
+                    className="absolute right-0 mt-2 w-48 overflow-hidden rounded-xl border border-border bg-popover py-1 shadow-lg"
                   >
-                    <User className="w-4 h-4" />
-                    <span>View Profile</span>
-                  </Link>
-                  <Link
-                    to="/settings"
-                    className="flex items-center space-x-3 px-4 py-2 text-gray-700 hover:bg-pink-50 transition-colors"
-                    onClick={() => setIsProfileOpen(false)}
-                  >
-                    <Settings className="w-4 h-4" />
-                    <span>Settings</span>
-                  </Link>
-                  <hr className="my-2 border-gray-100" />
-                  <button
-                    onClick={handleLogoutClick}
-                    className="flex items-center space-x-3 px-4 py-2 text-red-600 hover:bg-red-50 transition-colors w-full text-left"
-                  >
-                    <LogOut className="w-4 h-4" />
-                    <span>Logout</span>
-                  </button>
-                </div>
-              )}
+                    <Link
+                      to="/profile"
+                      role="menuitem"
+                      className="flex items-center gap-3 px-4 py-2 text-sm text-popover-foreground transition-colors hover:bg-accent"
+                      onClick={() => setIsProfileOpen(false)}
+                    >
+                      <User className="size-4" /> View Profile
+                    </Link>
+                    <Link
+                      to="/settings"
+                      role="menuitem"
+                      className="flex items-center gap-3 px-4 py-2 text-sm text-popover-foreground transition-colors hover:bg-accent"
+                      onClick={() => setIsProfileOpen(false)}
+                    >
+                      <Settings className="size-4" /> Settings
+                    </Link>
+                    <hr className="my-1 border-border" />
+                    <button
+                      onClick={() => {
+                        setIsProfileOpen(false);
+                        onLogout();
+                      }}
+                      role="menuitem"
+                      className="flex w-full cursor-pointer items-center gap-3 px-4 py-2 text-left text-sm text-destructive transition-colors hover:bg-destructive/10"
+                    >
+                      <LogOut className="size-4" /> Logout
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Mobile Navigation */}
-      <div className="md:hidden border-t border-pink-100">
-        <nav className="flex justify-around py-2">
-          {navLinks.map((link) => {
-            const Icon = link.icon;
-            return (
-              <Link
-                key={link.name}
-                to={link.path}
-                className={`flex flex-col items-center space-y-1 px-3 py-2 rounded-lg transition-all ${
-                  isActiveLink(link.path)
-                    ? "text-pink-600 bg-pink-50"
-                    : "text-gray-600 hover:text-pink-600"
-                }`}
-              >
-                <Icon className="w-5 h-5" />
-                <span className="text-xs">{link.name}</span>
-              </Link>
-            );
-          })}
-        </nav>
-      </div>
+      {/* Mobile bottom tab bar */}
+      <BottomNav />
     </header>
   );
 };
