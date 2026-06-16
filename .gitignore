@@ -1,2 +1,7 @@
 CLAUDE.md
 /.claude
+
+# Dependencies & build/cache artifacts (real deps live in frontend/ and backend/)
+node_modules/
+.vite/
+dist/
