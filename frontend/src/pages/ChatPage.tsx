@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { motion } from "framer-motion";
 import Navbar from "@/components/Navbar";
 import {
   Send,
@@ -9,180 +10,23 @@ import {
   Search,
   ShieldBan,
   Flag,
-  Check,
-  CheckCheck,
-  Trash2,
-  Ban,
+  MessageCircle,
 } from "lucide-react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import * as chatService from "@/services/chatService";
 import type { ChatSummary, ChatMessage } from "@/services/chatService";
+import { Avatar } from "@/components/ui/avatar";
+import { ConversationItem } from "@/components/chat/ConversationItem";
+import { MessageBubble } from "@/components/chat/MessageBubble";
+import { TypingIndicator } from "@/components/chat/TypingIndicator";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import * as socketService from "@/services/socketService";
 import * as blockReportService from "@/services/blockReportService";
 import type { ReportReason } from "@/services/blockReportService";
 import { SERVER_BASE_URL } from "@/services/api";
 import { toast } from "react-toastify";
-
-const ConversationItem = React.memo(
-  ({
-    chat,
-    isSelected,
-    isOnline,
-    onClick,
-    getProfilePicUrl,
-    formatConversationTime,
-  }: {
-    chat: ChatSummary;
-    isSelected: boolean;
-    isOnline: boolean;
-    onClick: () => void;
-    getProfilePicUrl: (chat: ChatSummary) => string | undefined;
-    formatConversationTime: (date: string | Date) => string;
-  }) => {
-    const picUrl = getProfilePicUrl(chat);
-    return (
-      <div
-        onClick={onClick}
-        className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors border-b border-gray-100 ${
-          isSelected ? "bg-pink-50 border-pink-200" : ""
-        }`}
-      >
-        <div className="flex items-center space-x-3">
-          <div className="relative">
-            {picUrl ? (
-              <img
-                src={picUrl}
-                alt={chat.otherUserName}
-                className="w-12 h-12 rounded-full object-cover"
-              />
-            ) : (
-              <div className="w-12 h-12 rounded-full bg-gradient-to-r from-pink-400 to-red-400 flex items-center justify-center text-white font-bold text-lg">
-                {chat.otherUserName.charAt(0)}
-              </div>
-            )}
-            {isOnline && (
-              <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></div>
-            )}
-          </div>
-
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-800 truncate">
-                {chat.otherUserName}
-              </h3>
-              <span className="text-xs text-gray-500">
-                {formatConversationTime(chat.lastMessageTime)}
-              </span>
-            </div>
-            <p className="text-sm text-gray-600 truncate mt-1">
-              {chat.isLastMessageFromMe && "You: "}
-              {chat.lastMessage}
-            </p>
-          </div>
-
-          {chat.unreadCount > 0 && (
-            <div className="bg-pink-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-              {chat.unreadCount}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-);
-
-const MessageBubble = React.memo(
-  ({
-    message,
-    formatTime,
-    onDelete,
-  }: {
-    message: ChatMessage;
-    formatTime: (date: string | Date) => string;
-    onDelete?: (messageId: string) => void;
-  }) => {
-    const [showDelete, setShowDelete] = useState(false);
-    const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const isDeleted = !!message.deletedAt;
-    const canDelete = message.isFromMe && !isDeleted && onDelete;
-
-    const handleMouseEnter = () => {
-      if (canDelete) setShowDelete(true);
-    };
-    const handleMouseLeave = () => {
-      setShowDelete(false);
-    };
-    const handleTouchStart = () => {
-      if (canDelete) {
-        longPressTimer.current = setTimeout(() => setShowDelete(true), 500);
-      }
-    };
-    const handleTouchEnd = () => {
-      if (longPressTimer.current) clearTimeout(longPressTimer.current);
-    };
-
-    return (
-      <div
-        className={`group flex ${message.isFromMe ? "justify-end" : "justify-start"}`}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-      >
-        {/* Delete button (before bubble for own messages) */}
-        {message.isFromMe && showDelete && (
-          <button
-            onClick={() => onDelete?.(message.messageId)}
-            className="self-center mr-2 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
-            title="Delete message"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        )}
-
-        <div
-          className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
-            isDeleted
-              ? "bg-gray-100 border border-gray-200"
-              : message.isFromMe
-                ? "bg-gradient-to-r from-pink-500 to-red-500 text-white"
-                : "bg-white text-gray-800 shadow-sm"
-          }`}
-        >
-          {isDeleted ? (
-            <p className="text-sm italic text-gray-400 flex items-center gap-1.5">
-              <Ban className="w-3.5 h-3.5" />
-              This message was deleted
-            </p>
-          ) : (
-            <p className="text-sm">{message.content}</p>
-          )}
-          <span
-            className={`flex items-center gap-1 text-xs mt-1 ${
-              isDeleted
-                ? "text-gray-400"
-                : message.isFromMe
-                  ? "text-pink-100"
-                  : "text-gray-500"
-            }`}
-          >
-            {formatTime(message.timestamp)}
-            {message.isFromMe &&
-              !isDeleted &&
-              (message.status === "read" ? (
-                <CheckCheck className="w-3.5 h-3.5 text-blue-300" />
-              ) : message.status === "delivered" ? (
-                <CheckCheck className="w-3.5 h-3.5" />
-              ) : (
-                <Check className="w-3.5 h-3.5" />
-              ))}
-          </span>
-        </div>
-      </div>
-    );
-  }
-);
 
 const ChatPage: React.FC = () => {
   const { matchId } = useParams<{ matchId: string }>();
@@ -631,14 +475,19 @@ const ChatPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-red-50">
+      <div className="min-h-screen bg-muted/30">
         <Navbar onLogout={() => {}} />
         <main className="h-[calc(100vh-80px)] p-0">
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-pink-500 mx-auto mb-4"></div>
-              <p className="text-gray-600">Loading conversations...</p>
-            </div>
+          <div className="h-full w-80 space-y-1 border-r border-border bg-card p-4">
+            {Array.from({ length: 7 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 p-2">
+                <Skeleton className="size-12 rounded-full" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-3.5 w-1/3" />
+                  <Skeleton className="h-3 w-2/3" />
+                </div>
+              </div>
+            ))}
           </div>
         </main>
       </div>
@@ -646,36 +495,43 @@ const ChatPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-red-50">
+    <div className="min-h-screen bg-muted/30">
       <Navbar onLogout={() => {}} />
       <main className="h-[calc(100vh-80px)] p-0">
-        <div className="h-full bg-gray-50">
-          <div className="flex h-full bg-white rounded-2xl shadow-lg overflow-hidden">
+        <div className="h-full bg-background">
+          <div className="flex h-full overflow-hidden rounded-2xl border border-border bg-card shadow-lg">
             {/* Sidebar - Conversations List */}
-            <div className="w-80 border-r border-gray-200 bg-white flex flex-col">
-              <div className="p-4 border-b border-gray-200">
-                <h1 className="text-xl font-bold text-gray-800">Messages</h1>
+            <div className="flex w-80 flex-col border-r border-border bg-card">
+              <div className="border-b border-border p-4">
+                <h1 className="font-display text-xl font-bold text-foreground">
+                  Messages
+                </h1>
               </div>
 
-              <div className="p-4 border-b border-gray-200">
+              <div className="border-b border-border p-4">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   <input
                     type="text"
-                    placeholder="Search conversations..."
+                    placeholder="Search conversations…"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+                    className="w-full rounded-lg border border-input bg-background py-2 pl-10 pr-4 text-foreground placeholder:text-muted-foreground focus:border-transparent focus:outline-none focus:ring-2 focus:ring-ring"
                   />
                 </div>
               </div>
 
               <div className="flex-1 overflow-y-auto">
                 {filteredConversations.length === 0 ? (
-                  <div className="p-4 text-center text-gray-500">
-                    {searchQuery
-                      ? "No conversations found"
-                      : "No conversations yet. Match with someone to start chatting!"}
+                  <div className="flex flex-col items-center px-6 py-12 text-center">
+                    <div className="grid size-14 place-items-center rounded-full bg-accent">
+                      <MessageCircle className="size-7 text-brand" />
+                    </div>
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      {searchQuery
+                        ? "No conversations found"
+                        : "No conversations yet. Match with someone to start chatting!"}
+                    </p>
                   </div>
                 ) : (
                   filteredConversations.map((chat) => (
@@ -698,32 +554,31 @@ const ChatPage: React.FC = () => {
               {selectedChat ? (
                 <>
                   {/* Chat Header */}
-                  <div className="bg-white border-b border-gray-200 p-4">
+                  <div className="border-b border-border bg-card p-4">
                     <div className="flex items-center space-x-3">
-                      <div className="relative">
-                        {getProfilePicUrl(selectedChat) ? (
-                          <img
-                            src={getProfilePicUrl(selectedChat)}
-                            alt={selectedChat.otherUserName}
-                            className="w-10 h-10 rounded-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-r from-pink-400 to-red-400 flex items-center justify-center text-white font-bold">
-                            {selectedChat.otherUserName.charAt(0)}
-                          </div>
-                        )}
-                        {isOtherUserOnline && (
-                          <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-white"></div>
-                        )}
-                      </div>
+                      <Avatar
+                        src={getProfilePicUrl(selectedChat)}
+                        name={selectedChat.otherUserName}
+                        size="sm"
+                        online={!!isOtherUserOnline}
+                      />
 
                       <div className="flex-1">
-                        <h2 className="font-semibold text-gray-800">
+                        <h2 className="font-display font-semibold text-foreground">
                           {selectedChat.otherUserName}
                         </h2>
-                        <p className="text-sm text-gray-500">
+                        <p
+                          className={cn(
+                            "text-sm",
+                            isOtherUserTyping
+                              ? "text-brand"
+                              : isOtherUserOnline
+                                ? "text-like"
+                                : "text-muted-foreground"
+                          )}
+                        >
                           {isOtherUserTyping
-                            ? "Typing..."
+                            ? "Typing…"
                             : isOtherUserOnline
                               ? "Online"
                               : "Offline"}
@@ -731,34 +586,34 @@ const ChatPage: React.FC = () => {
                       </div>
 
                       <div className="flex space-x-2">
-                        <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors">
+                        <button className="cursor-pointer rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
                           <Phone className="w-5 h-5" />
                         </button>
-                        <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors">
+                        <button className="cursor-pointer rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
                           <Video className="w-5 h-5" />
                         </button>
                         <div className="relative" ref={menuRef}>
                           <button
                             onClick={() => setShowMenu(!showMenu)}
-                            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+                            className="cursor-pointer rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                           >
                             <MoreVertical className="w-5 h-5" />
                           </button>
                           {showMenu && (
-                            <div className="absolute right-0 top-10 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1">
+                            <div className="absolute right-0 top-10 z-popover w-48 rounded-lg border border-border bg-popover py-1 shadow-lg">
                               <button
                                 onClick={() => {
                                   setShowReportModal(true);
                                   setShowMenu(false);
                                 }}
-                                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                className="flex w-full cursor-pointer items-center gap-2 px-4 py-2 text-left text-sm text-popover-foreground transition-colors hover:bg-accent"
                               >
                                 <Flag className="w-4 h-4" />
                                 Report User
                               </button>
                               <button
                                 onClick={handleBlock}
-                                className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                className="flex w-full cursor-pointer items-center gap-2 px-4 py-2 text-left text-sm text-destructive transition-colors hover:bg-destructive/10"
                               >
                                 <ShieldBan className="w-4 h-4" />
                                 Block User
@@ -773,21 +628,21 @@ const ChatPage: React.FC = () => {
                   {/* Messages */}
                   <div
                     ref={messagesContainerRef}
-                    className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50"
+                    className="flex-1 space-y-4 overflow-y-auto bg-background p-4"
                   >
                     {hasMoreMessages && (
-                      <div className="text-center py-2">
+                      <div className="py-2 text-center">
                         <button
                           onClick={loadOlderMessages}
                           disabled={loadingOlder}
-                          className="text-sm text-pink-500 hover:text-pink-600 font-medium disabled:opacity-50"
+                          className="cursor-pointer text-sm font-medium text-brand hover:text-brand/80 disabled:opacity-50"
                         >
                           {loadingOlder ? "Loading..." : "Load older messages"}
                         </button>
                       </div>
                     )}
                     {messages.length === 0 ? (
-                      <div className="flex items-center justify-center h-full text-gray-400">
+                      <div className="flex h-full items-center justify-center text-muted-foreground">
                         <p>No messages yet. Say hello!</p>
                       </div>
                     ) : (
@@ -800,46 +655,54 @@ const ChatPage: React.FC = () => {
                         />
                       ))
                     )}
+                    {isOtherUserTyping && <TypingIndicator />}
                     <div ref={messagesEndRef} />
                   </div>
 
                   {/* Message Input */}
-                  <div className="bg-white border-t border-gray-200 p-4">
+                  <div className="border-t border-border bg-card p-4">
                     <div className="flex items-center space-x-2">
-                      <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors">
+                      <button
+                        aria-label="Attach image"
+                        className="cursor-pointer rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                      >
                         <ImageIcon className="w-5 h-5" />
                       </button>
 
-                      <div className="flex-1 relative">
+                      <div className="relative flex-1">
                         <textarea
                           value={newMessage}
                           onChange={handleTyping}
                           onKeyDown={handleKeyPress}
-                          placeholder="Type a message..."
-                          className="w-full px-4 py-2 border border-gray-300 rounded-full resize-none focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+                          placeholder="Type a message…"
+                          className="w-full resize-none rounded-2xl border border-input bg-background px-4 py-2 text-foreground placeholder:text-muted-foreground focus:border-transparent focus:outline-none focus:ring-2 focus:ring-ring"
                           rows={1}
                           style={{ minHeight: "44px", maxHeight: "120px" }}
                         />
                       </div>
 
-                      <button
+                      <motion.button
                         onClick={handleSendMessage}
                         disabled={!newMessage.trim()}
-                        className="p-2 bg-gradient-to-r from-pink-500 to-red-500 text-white rounded-full hover:from-pink-600 hover:to-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        whileTap={{ scale: 0.9 }}
+                        aria-label="Send message"
+                        className="grid size-11 cursor-pointer place-items-center rounded-full bg-gradient-brand text-white shadow-brand transition-[filter] hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <Send className="w-5 h-5" />
-                      </button>
+                      </motion.button>
                     </div>
                   </div>
                 </>
               ) : (
-                <div className="flex-1 flex items-center justify-center bg-gray-50">
-                  <div className="text-center">
-                    <div className="text-6xl mb-4">💬</div>
-                    <h3 className="text-xl font-semibold text-gray-800 mb-2">
+                <div className="flex flex-1 items-center justify-center bg-background">
+                  <div className="px-6 text-center">
+                    <div className="mx-auto grid size-20 place-items-center rounded-full bg-accent">
+                      <MessageCircle className="size-10 text-brand" />
+                    </div>
+                    <h3 className="mt-5 font-display text-xl font-bold text-foreground">
                       Select a conversation
                     </h3>
-                    <p className="text-gray-600">
+                    <p className="mt-2 text-muted-foreground">
                       Choose a conversation from the sidebar to start chatting
                     </p>
                   </div>
@@ -851,13 +714,13 @@ const ChatPage: React.FC = () => {
 
         {/* Report Modal */}
         {showReportModal && selectedChat && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">
+          <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl">
+              <h3 className="mb-4 font-display text-lg font-semibold text-foreground">
                 Report {selectedChat.otherUserName}
               </h3>
 
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="mb-1 block text-sm font-medium text-foreground">
                 Reason
               </label>
               <select
@@ -865,7 +728,7 @@ const ChatPage: React.FC = () => {
                 onChange={(e) =>
                   setReportReason(e.target.value as ReportReason)
                 }
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-pink-500"
+                className="mb-4 w-full rounded-lg border border-input bg-background px-3 py-2 text-foreground focus:border-transparent focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 <option value="inappropriate">Inappropriate content</option>
                 <option value="spam">Spam</option>
@@ -874,14 +737,14 @@ const ChatPage: React.FC = () => {
                 <option value="other">Other</option>
               </select>
 
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="mb-1 block text-sm font-medium text-foreground">
                 Details (optional)
               </label>
               <textarea
                 value={reportDescription}
                 onChange={(e) => setReportDescription(e.target.value)}
-                placeholder="Describe the issue..."
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 mb-4 resize-none focus:outline-none focus:ring-2 focus:ring-pink-500"
+                placeholder="Describe the issue…"
+                className="mb-4 w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-foreground placeholder:text-muted-foreground focus:border-transparent focus:outline-none focus:ring-2 focus:ring-ring"
                 rows={3}
                 maxLength={500}
               />
@@ -892,13 +755,13 @@ const ChatPage: React.FC = () => {
                     setShowReportModal(false);
                     setReportDescription("");
                   }}
-                  className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+                  className="flex-1 cursor-pointer rounded-xl bg-secondary px-4 py-2 font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleReport}
-                  className="flex-1 bg-red-500 text-white py-2 px-4 rounded-xl font-medium hover:bg-red-600 transition-colors"
+                  className="flex-1 cursor-pointer rounded-xl bg-destructive px-4 py-2 font-medium text-destructive-foreground transition-colors hover:bg-destructive/90"
                 >
                   Submit Report
                 </button>
